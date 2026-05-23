@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAPL Player - Mp4 Audio PLayback player</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the Inter font */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Dark background */
+            transition: background-color 0.5s ease-in-out; /* Smooth background transitions */
+            overflow-x: hidden; /* Prevent horizontal scroll, main content manages its overflow */
+            display: flex; /* Use flex for overall body structure */
+            min-height: 100vh;
+            position: relative; /* Important for absolute positioning of overlay/sidebar */
+        }
+
+        /* Left Vertical Panel - The new fixed bar */
+        #leftVerticalPanel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 140px; /* Thinner fixed width for the vertical bar */
+            height: 100%;
+            background-color: #1f2937; /* Darker background for the fixed bar */
+            z-index: 1010; /* Higher z-index to be always on top */
+            box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+            padding: 1rem 0.75rem; /* Adjusted padding for thinner panel */
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start; /* Align content to the start (left) */
+            gap: 1rem; /* Space between buttons */
+            color: white;
+        }
+
+        /* Open Sidebar Button inside the vertical panel */
+        #openSidebarBtn {
+            display: flex;
+            flex-direction: row; /* Icon and text side-by-side */
+            align-items: center; /* Vertically center icon and text */
+            justify-content: flex-start; /* Align content to the start (left) */
+            padding: 0.5rem; /* Adjusted padding */
+            width: 100%; /* Take full width */
+            border-radius: 12px;
+            background-color: #4a5568; /* Tailwind gray-700 */
+            color: white;
+            font-weight: bold;
+            font-size: 0.875rem;
+            line-height: 1;
+            transition: background-color 0.3s ease;
+            cursor: pointer;
+            white-space: nowrap; /* Ensure text stays on one line */
+        }
+        #openSidebarBtn:hover {
+            background-color: #63b3ed; /* Blue-400 on hover */
+        }
+        #openSidebarBtn svg {
+            width: 1.8rem; /* Smaller icon for side-by-side */
+            height: 1.8rem;
+            margin-right: 0.5rem; /* Space between icon and text */
+        }
+
+        /* Hamburger Menu (Sliding Sidebar) */
+        #leftSidebar {
+            position: fixed;
+            top: 0;
+            left: 140px; /* Matches the width of leftVerticalPanel */
+            width: 320px; /* Width of the actual sliding menu */
+            height: 100%;
+            background-color: #2d3748; /* bg-gray-700 */
+            transform: translateX(-100%); /* Start off-screen relative to its 'left' */
+            transition: transform 0.3s ease-in-out;
+            z-index: 1000; /* Lower than vertical panel but above main content */
+            box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        #leftSidebar.open {
+            transform: translateX(0); /* Slide in */
+        }
+
+        /* Overlay for when sidebar is open */
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 999;
+            display: none;
+        }
+        #overlay.open {
+            display: block;
+        }
+
+        /* Global Title */
+        #globalTitle {
+            position: absolute; /* Absolute position relative to body */
+            top: 1rem;
+            left: calc(140px + 2rem); /* 140px from sidebar + 2rem padding/margin */
+            display: flex;
+            align-items: center;
+            color: white;
+            font-size: 2.25rem; /* text-4xl */
+            font-weight: bold;
+            z-index: 50; /* Above player, below sidebar */
+            white-space: nowrap; /* Prevent wrapping */
+        }
+        #globalTitle svg {
+            width: 2.5rem;
+            height: 2.5rem;
+            margin-right: 0.75rem;
+            color: #63b3ed; /* A touch of blue for the icon */
+        }
+
+        /* Main Content Wrapper - Takes up remaining space and centers player */
+        #mainContentWrapper {
+            flex-grow: 1; /* Takes all available horizontal space */
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* Center content vertically in this wrapper */
+            align-items: center; /* Center content horizontally in this wrapper */
+            margin-left: 140px; /* Offset from fixed vertical panel */
+            padding: 1rem; /* Padding for the entire content area */
+            box-sizing: border-box; /* Include padding in width/height calculation */
+            min-height: 100vh; /* Ensure it's tall enough to center content */
+        }
+
+        /* Main Player Container */
+        #playerContainer {
+            max-width: 900px; /* Wider for desktop */
+            width: 100%; /* Take full width of its flex parent, up to max-width */
+            background-color: #1f2937;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            /* margin: auto handles vertical and horizontal centering within mainContentWrapper */
+            margin-top: 80px; /* Add margin to push down below global title */
+            transition: background-color 0.5s ease-in-out;
+            position: relative; /* For inner absolute elements like top-right controls */
+            display: flex; /* Enable flex for internal content alignment */
+            flex-direction: column;
+            align-items: center; /* Center items horizontally within the player */
+            justify-content: center; /* Center items vertically within the player */
+        }
+
+        /* Hidden video element but keeps its audio capabilities */
+        #videoPlayer {
+            display: none;
+            max-width: 100%;
+            height: auto;
+            margin: 0 auto;
+        }
+
+        /* Custom styling for range input (seek and volume) */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #63b3ed;
+            cursor: pointer;
+            box-shadow: 0 0 0 4px rgba(99, 179, 237, 0.3);
+            margin-top: -6px;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #63b3ed;
+            cursor: pointer;
+            box-shadow: 0 0 0 4px rgba(99, 179, 237, 0.3);
+        }
+        input[type="range"]::-ms-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #63b3ed;
+            cursor: pointer;
+            box-shadow: 0 0 0 4px rgba(99, 179, 237, 0.3);
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 4px;
+            background: #4a5568;
+            border-radius: 2px;
+        }
+        input[type="range"]::-moz-range-track {
+            height: 4px;
+            background: #4a5568;
+            border-radius: 2px;
+        }
+        input[type="range"]::-ms-track {
+            height: 4px;
+            background: #4a5568;
+            border-radius: 2px;
+        }
+
+        /* Styling for view toggle buttons */
+        .view-toggle-btn.active {
+            @apply bg-blue-700;
+        }
+
+        /* Buttons within the left vertical panel - side-by-side layout */
+        .panel-view-btn {
+            display: flex;
+            flex-direction: row; /* Icon and text side-by-side */
+            align-items: center; /* Vertically center icon and text */
+            justify-content: flex-start; /* Align content to the left */
+            padding: 0.5rem; /* Adjusted padding */
+            width: 100%;
+            border-radius: 12px;
+            background-color: transparent;
+            color: #d1d5db; /* gray-300 */
+            font-size: 0.875rem;
+            line-height: 1;
+            transition: background-color 0.3s ease, color 0.3s ease;
+            white-space: nowrap; /* Ensure text stays on one line */
+        }
+        .panel-view-btn:hover {
+            background-color: #4a5568; /* gray-700 */
+            color: white;
+        }
+        .panel-view-btn.active {
+            background-color: #2b6cb0; /* blue-700 */
+            color: white;
+        }
+        .panel-view-btn svg {
+            width: 1.8rem; /* Icon size */
+            height: 1.8rem;
+            margin-right: 0.5rem; /* Space between icon and text */
+        }
+
+
+        /* Lyrics area styling */
+        #lyricsDisplay {
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            text-align: center;
+            padding: 20px;
+            border-radius: 12px;
+            background-color: rgba(0, 0, 0, 0.3);
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+
+        /* Thumbnail display */
+        #thumbnailDisplay {
+            width: 250px;
+            height: 250px;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4);
+            margin: 0 auto 2rem;
+        }
+        #thumbnailDisplay img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Hidden canvas for color extraction */
+        #colorCanvas {
+            display: none;
+        }
+
+        /* Drag over effect for player container */
+        #playerContainer.drag-over {
+            border: 3px dashed #63b3ed;
+        }
+
+        /* Drag and drop hint */
+        #dragDropHint {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 1.5rem;
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Top-right controls container - combined volume and loop */
+        #topRightControls {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            z-index: 10;
+        }
+
+        /* Volume control on hover */
+        #volumeControlContainer {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 9999px;
+            background-color: rgba(45, 55, 72, 0.5);
+            transition: background-color 0.3s ease;
+        }
+
+        #volumeControlContainer:hover {
+            background-color: rgba(45, 55, 72, 0.8);
+        }
+
+        #volumeSliderContainer {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
+            transition: opacity 0.3s ease-in-out, width 0.3s ease-in-out;
+            display: flex;
+            align-items: center;
+        }
+
+        #volumeControlContainer:hover #volumeSliderContainer {
+            opacity: 1;
+            width: 100px;
+        }
+
+        #volumeSlider {
+            flex-grow: 1;
+            height: 4px;
+            margin: 0;
+        }
+
+        #volumeValue {
+            min-width: 30px;
+            text-align: right;
+            font-size: 0.8rem;
+        }
+
+        /* About Modal */
+        #aboutModalOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 2000; /* Above everything */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        #aboutModalOverlay.open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        #aboutModal {
+            background-color: #1f2937;
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            max-width: 500px;
+            width: 90%;
+            transform: translateY(-20px);
+            transition: transform 0.3s ease;
+            position: relative;
+        }
+        #aboutModalOverlay.open #aboutModal {
+            transform: translateY(0);
+        }
+        #aboutModal .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #d1d5db;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+        #aboutModal .close-btn:hover {
+            color: #ef4444; /* Red-500 */
+        }
+    </style>
+</head>
+<body class="p-4">
+
+    <!-- Left Vertical Panel - Always Visible -->
+    <div id="leftVerticalPanel">
+        <!-- Open Sidebar Button -->
+        <button id="openSidebarBtn">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="h-6 w-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Open Files</span>
+        </button>
+
+        <!-- View Buttons in Vertical Panel -->
+        <button id="viewLyricsBtnPanel" class="panel-view-btn">
+            <!-- Document / Lyrics Icon (Heroicons outline) -->
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="h-6 w-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h10M7 16h6" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" />
+            </svg>
+            <span>Lyrics</span>
+        </button>
+
+        <button id="viewPlaylistBtnPanel" class="panel-view-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="h-6 w-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            <span>Playlist</span>
+        </button>
+
+        <button id="captureThumbnailBtnPanel" class="panel-view-btn hidden">
+            <!-- Photo / Capture Icon -->
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="h-6 w-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5A2.5 2.5 0 015.5 5h13A2.5 2.5 0 0121 7.5v9A2.5 2.5 0 0118.5 19h-13A2.5 2.5 0 013 16.5v-9z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span>Capture</span>
+        </button>
+
+        <!-- About Button -->
+        <button id="aboutBtn" class="mt-auto panel-view-btn">
+            <!-- Info Circle (Heroicons outline) -->
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="h-6 w-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8h.01" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 2a10 10 0 100 20 10 10 0 000-20z" />
+            </svg>
+            <span>About</span>
+        </button>
+    </div>
+
+    <!-- Overlay for sidebar -->
+    <div id="overlay"></div>
+
+    <!-- Left Sliding Sidebar (File Loaders) -->
+    <aside id="leftSidebar">
+        <h2 class="text-xl font-bold text-white mb-4">Load Files</h2>
+        <div class="flex-1 flex flex-col gap-4">
+            <!-- File Loaders -->
+            <div>
+                <label for="mediaFileInput" class="block text-gray-300 text-sm font-medium mb-2">
+                    Select video (MP4/WebM):
+                </label>
+                <input type="file" id="mediaFileInput" accept="video/mp4,video/webm"
+                       class="block w-full text-sm text-gray-400
+                              file:mr-4 file:py-2 file:px-4
+                              file:rounded-full file:border-0
+                              file:text-sm file:font-semibold
+                              file:bg-blue-500 file:text-white
+                              hover:file:bg-blue-600
+                              cursor-pointer">
+            </div>
+            <div>
+                <label for="xspfFileInput" class="block text-gray-300 text-sm font-medium mb-2">
+                    Select XSPF playlist (.xspf):
+                </label>
+                <input type="file" id="xspfFileInput" accept=".xspf,application/xspf+xml"
+                       class="block w-full text-sm text-gray-400
+                              file:mr-4 file:py-2 file:px-4
+                              file:rounded-full file:border-0
+                              file:text-sm file:font-semibold
+                              file:bg-purple-500 file:text-white
+                              hover:file:bg-purple-600
+                              cursor-pointer">
+            </div>
+            <div>
+                <label for="lyricsFileInput" class="block text-gray-300 text-sm font-medium mb-2">
+                    Select Lyrics (.txt):
+                </label>
+                <input type="file" id="lyricsFileInput" accept=".txt,text/plain"
+                       class="block w-full text-sm text-gray-400
+                              file:mr-4 file:py-2 file:px-4
+                              file:rounded-full file:border-0
+                              file:text-sm file:font-semibold
+                              file:bg-green-500 file:text-white
+                              hover:file:bg-green-600
+                              cursor-pointer">
+            </div>
+        </div>
+        <button id="closeSidebarBtn" class="mt-auto py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded-full transition">Close Menu</button>
+    </aside>
+
+    <!-- Main Content Wrapper - for global title and player centering -->
+    <div id="mainContentWrapper">
+        <!-- Global Title outside main player -->
+        <div id="globalTitle">
+            <!-- Music Note Logo (clear, slightly larger) -->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-14 h-14 mr-3 text-blue-400" fill="currentColor" aria-hidden="true">
+                <path d="M9 17V6l11-4v11a3 3 0 11-2-2V8.2L11 11v6a3 3 0 11-2-2z" />
+            </svg>
+            <span>MAPL Player</span>
+        </div>
+
+        <!-- Main Player Content -->
+        <div id="playerContainer">
+            <!-- Top-right controls container -->
+            <div id="topRightControls" class="flex items-center space-x-2">
+                <!-- Volume Control Container (Icon + Hover Slider) -->
+                <div id="volumeControlContainer" class="rounded-full">
+                    <button id="volumeIconBtn" class="p-2 rounded-full text-gray-400 hover:text-blue-400 focus:outline-none transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 8H3v8h3l5 3V5z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.07 4.93a10 10 0 010 14.14M16.24 7.76a6 6 0 010 8.48" />
+                        </svg>
+                    </button>
+                    <div id="volumeSliderContainer" class="flex items-center">
+                        <input type="range" id="volumeSlider" value="100" min="0" max="100" class="h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                        <span id="volumeValue" class="text-gray-400 text-sm">100%</span>
+                    </div>
+                </div>
+                <!-- Loop Toggle Button -->
+                <button id="loopToggleBtn" class="p-2 rounded-full text-gray-400 hover:text-blue-400 focus:outline-none transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v6a4 4 0 004 4h10" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 17V11a4 4 0 00-4-4H7" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Drag and Drop Hint -->
+            <div id="dragDropHint" class="hidden">DRAG & DROP FILES HERE</div>
+
+            <!-- Hidden Video Element and Canvas for Thumbnail Extraction -->
+            <video id="videoPlayer" class="rounded-lg mb-4"></video>
+            <canvas id="colorCanvas" width="100" height="100"></canvas>
+
+            <!-- Player Display Area -->
+            <div class="flex flex-col space-y-4 w-full"> <!-- Added w-full to make it take full width of playerContainer -->
+                <div id="thumbnailView" class="flex flex-col items-center justify-center text-gray-200 w-full px-4">
+                    <div id="thumbnailDisplay" class="mb-4">
+                        <!-- Thumbnail image will be inserted here -->
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 text-gray-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <rect x="2" y="4" width="20" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1" />
+                            <circle cx="17" cy="7" r="2" />
+                            <polygon points="4,18 9,11 13,16 18,9 20,12 20,18" />
+                        </svg>
+                    </div>
+                    <div class="text-xl font-semibold overflow-hidden text-ellipsis whitespace-nowrap text-center w-full" id="currentTrackTitle">
+                        No file selected
+                    </div>
+                </div>
+
+                <div id="lyricsView" class="hidden text-gray-300 text-sm w-full">
+                    <h3 class="text-lg font-bold text-center mb-4">Lyrics</h3>
+                    <div id="lyricsDisplay" class="text-gray-300">
+                        No lyrics loaded. Please load a .txt file.
+                    </div>
+                </div>
+
+                <div id="playlistView" class="hidden text-gray-300 text-sm w-full">
+                    <h3 class="text-lg font-bold text-center mb-4">Current Playlist</h3>
+                    <input type="text" id="playlistFilterInput" placeholder="Filter playlist..."
+                           class="w-full p-2 mb-4 rounded-lg bg-gray-700 text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <ul id="playlistList" class="list-none p-0 max-h-64 overflow-y-auto bg-gray-700 rounded-lg">
+                        <li class="text-center text-gray-400 py-2">No tracks in playlist.</li>
+                    </ul>
+                </div>
+
+                <!-- Player Controls -->
+                <div class="mt-6 flex flex-col space-y-4 w-full">
+                    <!-- Main Playback Controls: Previous, Play/Pause, Next -->
+                    <div class="flex items-center justify-center space-x-2">
+                        <button id="prevBtn" class="p-2 rounded-full text-gray-400 hover:text-blue-400 focus:outline-none transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" aria-hidden="true">
+                                <rect x="2" y="2" width="20" height="20" rx="6" fill="none" stroke="currentColor" stroke-width="1.2" />
+                                <polygon fill="currentColor" points="15,7 9,12 15,17" />
+                                <polygon fill="currentColor" points="19,7 13,12 19,17" />
+                            </svg>
+                        </button>
+                        <button id="playPauseBtn"
+                                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full
+                                       shadow-lg transform transition duration-300 ease-in-out
+                                       hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v18l18-9L5 3z" />
+                            </svg>
+                        </button>
+                        <button id="nextBtn" class="p-2 rounded-full text-gray-400 hover:text-blue-400 focus:outline-none transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 24 24" aria-hidden="true">
+                                <rect x="2" y="2" width="20" height="20" rx="6" fill="none" stroke="currentColor" stroke-width="1.2" />
+                                <polygon fill="currentColor" points="9,7 15,12 9,17" />
+                                <polygon fill="currentColor" points="5,7 11,12 5,17" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Seek Slider -->
+                    <div>
+                        <input type="range" id="seekSlider" value="0" min="0" max="100"
+                               class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                        <div class="flex justify-between text-gray-400 text-xs mt-1">
+                            <span id="currentTime">0:00</span>
+                            <span id="timeRemaining">-0:00</span>
+                            <span id="fullDuration">0:00</span>
+                        </div>
+                    </div>
+
+                    <!-- Main View Toggle Buttons -->
+                    <div class="flex justify-center space-x-4 mt-4">
+                        <button id="viewAudioBtnMain" class="view-toggle-btn active bg-gray-700 hover:bg-gray-600 text-gray-200 px-4 py-2 rounded-full text-sm">Audio</button>
+                        <button id="viewVideoBtnMain" class="view-toggle-btn bg-gray-700 hover:bg-gray-600 text-gray-200 px-4 py-2 rounded-full text-sm">Video</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Message/Error Display -->
+            <div id="messageArea" class="mt-6 text-center text-red-400 text-sm"></div>
+        </div>
+    </div>
+
+    <!-- About Modal Structure -->
+    <div id="aboutModalOverlay" class="fixed inset-0 flex items-center justify-center z-2000 hidden">
+        <div id="aboutModal" class="bg-gray-800 text-white p-8 rounded-lg shadow-xl relative max-w-sm w-full">
+            <button class="close-btn" id="closeAboutModalBtn">&times;</button>
+            <h3 class="text-2xl font-bold mb-4 text-center">About MAPL Player</h3>
+            <p class="text-gray-300 text-center">
+                Version: 1.3.0<br>
+                Mapl (Mp4 to Audio PLayback) is a versatile media player for MP4/WebM audio and video, with playlist, lyrics, and thumbnail capture features.
+            </p>
+            <p class="text-gray-400 text-xs mt-4 text-center">
+                Built with JavaScript.
+            </p>
+        </div>
+    </div>
+
+
+    <script>
+        const mediaFileInput = document.getElementById('mediaFileInput');
+        const xspfFileInput = document.getElementById('xspfFileInput');
+        const lyricsFileInput = document.getElementById('lyricsFileInput');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const loopToggleBtn = document.getElementById('loopToggleBtn');
+        const seekSlider = document.getElementById('seekSlider');
+        const currentTimeSpan = document.getElementById('currentTime');
+        const timeRemainingSpan = document.getElementById('timeRemaining');
+        const fullDurationSpan = document.getElementById('fullDuration');
+
+        const volumeControlContainer = document.getElementById('volumeControlContainer');
+        const volumeIconBtn = document.getElementById('volumeIconBtn');
+        const volumeSliderContainer = document.getElementById('volumeSliderContainer');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValueSpan = document.getElementById('volumeValue');
+
+        const currentTrackTitleSpan = document.getElementById('currentTrackTitle');
+        const messageArea = document.getElementById('messageArea');
+        const playerContainer = document.getElementById('playerContainer');
+        const dragDropHint = document.getElementById('dragDropHint');
+
+        const thumbnailView = document.getElementById('thumbnailView');
+        const lyricsView = document.getElementById('lyricsView');
+        const lyricsDisplay = document.getElementById('lyricsDisplay');
+        const thumbnailDisplay = document.getElementById('thumbnailDisplay');
+        const colorCanvas = document.getElementById('colorCanvas');
+
+        const openSidebarBtn = document.getElementById('openSidebarBtn');
+        const leftSidebar = document.getElementById('leftSidebar');
+        const closeSidebarBtn = document.getElementById('closeSidebarBtn');
+        const overlay = document.getElementById('overlay');
+
+        const viewLyricsBtnPanel = document.getElementById('viewLyricsBtnPanel');
+        const viewPlaylistBtnPanel = document.getElementById('viewPlaylistBtnPanel');
+        const captureThumbnailBtnPanel = document.getElementById('captureThumbnailBtnPanel');
+
+        const viewAudioBtnMain = document.getElementById('viewAudioBtnMain');
+        const viewVideoBtnMain = document.getElementById('viewVideoBtnMain');
+
+        const mainViewToggleButtons = [viewAudioBtnMain, viewVideoBtnMain];
+        const panelViewButtons = [openSidebarBtn, viewLyricsBtnPanel, viewPlaylistBtnPanel, captureThumbnailBtnPanel];
+
+
+        const playlistList = document.getElementById('playlistList');
+        const playlistFilterInput = document.getElementById('playlistFilterInput');
+
+        const aboutBtn = document.getElementById('aboutBtn');
+        const aboutModalOverlay = document.getElementById('aboutModalOverlay');
+        const aboutModal = document.getElementById('aboutModal');
+        const closeAboutModalBtn = document.getElementById('closeAboutModalBtn');
+
+
+        let isPlaying = false;
+        let isLoopingPlaylist = false;
+        let playlist = [];
+        let currentTrackIndex = -1;
+        let currentLyrics = '';
+        let currentView = 'audio';
+        let currentThumbnailDataUrl = '';
+        let userDefinedThumbnails = {};
+
+
+        // --- Persistent Settings (localStorage) ---
+        const LOCAL_STORAGE_VOLUME_KEY = 'mapl_player_volume';
+        const LOCAL_STORAGE_LOOP_KEY = 'mapl_player_loop';
+        const LOCAL_STORAGE_THUMBNAILS_KEY = 'mapl_player_thumbnails';
+
+        function saveSettings() {
+            localStorage.setItem(LOCAL_STORAGE_VOLUME_KEY, volumeSlider.value);
+            localStorage.setItem(LOCAL_STORAGE_LOOP_KEY, isLoopingPlaylist);
+            localStorage.setItem(LOCAL_STORAGE_THUMBNAILS_KEY, JSON.stringify(userDefinedThumbnails));
+        }
+
+        function loadSettings() {
+            const savedVolume = localStorage.getItem(LOCAL_STORAGE_VOLUME_KEY);
+            if (savedVolume !== null) {
+                volumeSlider.value = savedVolume;
+                videoPlayer.volume = savedVolume / 100;
+                volumeValueSpan.textContent = `${savedVolume}%`;
+            }
+
+            const savedLoop = localStorage.getItem(LOCAL_STORAGE_LOOP_KEY);
+            if (savedLoop !== null) {
+                isLoopingPlaylist = (savedLoop === 'true');
+                loopToggleBtn.classList.toggle('text-blue-400', isLoopingPlaylist);
+                loopToggleBtn.classList.toggle('text-gray-400', !isLoopingPlaylist);
+            }
+
+            const savedThumbnails = localStorage.getItem(LOCAL_STORAGE_THUMBNAILS_KEY);
+            if (savedThumbnails) {
+                try {
+                    userDefinedThumbnails = JSON.parse(savedThumbnails);
+                } catch (e) {
+                    console.error("Error parsing saved thumbnails from localStorage:", e);
+                    userDefinedThumbnails = {};
+                }
+            }
+        }
+
+
+        // --- Helper Functions ---
+
+        function formatTime(seconds) {
+            if (isNaN(seconds) || seconds < 0) return '0:00';
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
+            return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+        }
+
+        function updateAmbientBackground(imgElement) {
+            const context = colorCanvas.getContext('2d', { willReadFrequently: true });
+            context.clearRect(0, 0, colorCanvas.width, colorCanvas.height);
+            context.drawImage(imgElement, 0, 0, colorCanvas.width, colorCanvas.height);
+
+            const imageData = context.getImageData(0, 0, colorCanvas.width, colorCanvas.height).data;
+            let r = 0, g = 0, b = 0;
+            const step = 4 * 5;
+
+            for (let i = 0; i < imageData.length; i += step) {
+                r += imageData[i];
+                g += imageData[i + 1];
+                b += imageData[i + 2];
+            }
+
+            const pixelCount = imageData.length / step;
+            const avgR = Math.floor(r / pixelCount);
+            const avgG = Math.floor(g / pixelCount);
+            const avgB = Math.floor(b / pixelCount);
+
+            playerContainer.style.backgroundColor = `rgba(${avgR}, ${avgG}, ${avgB}, 0.6)`;
+            document.body.style.backgroundColor = `rgb(${Math.max(0, avgR - 30)}, ${Math.max(0, avgG - 30)}, ${Math.max(0, avgB - 30)})`;
+        }
+
+        function displayCurrentThumbnail() {
+            if (currentThumbnailDataUrl) {
+                const img = new Image();
+                img.src = currentThumbnailDataUrl;
+                img.onload = () => {
+                    thumbnailDisplay.innerHTML = '';
+                    thumbnailDisplay.appendChild(img);
+                    updateAmbientBackground(img);
+                };
+                img.onerror = () => {
+                    console.warn("Current thumbnail data URL failed to load, resetting.");
+                    resetThumbnailAndBackground();
+                };
+            } else {
+                resetThumbnailAndBackground();
+            }
+        }
+
+        function generateAndStoreThumbnail() {
+            if (videoPlayer.readyState >= 2) {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = videoPlayer.videoWidth;
+                tempCanvas.height = videoPlayer.videoHeight;
+                const tempCtx = tempCanvas.getContext('2d');
+
+                try {
+                    tempCtx.drawImage(videoPlayer, 0, 0, tempCanvas.width, tempCanvas.height);
+                    const imgDataUrl = tempCanvas.toDataURL('image/png');
+                    currentThumbnailDataUrl = imgDataUrl;
+                    displayCurrentThumbnail();
+                } catch (e) {
+                    console.warn("Could not draw video frame to canvas (CORS/tainted canvas or security issue):", e);
+                    resetThumbnailAndBackground();
+                }
+            } else {
+                 resetThumbnailAndBackground();
+            }
+        }
+
+        function resetThumbnailAndBackground() {
+            thumbnailDisplay.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 text-gray-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <rect x="2" y="4" width="20" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1" />
+                    <circle cx="17" cy="7" r="2" />
+                    <polygon points="4,18 9,11 13,16 18,9 20,12 20,18" />
+                </svg>
+            `;
+            playerContainer.style.backgroundColor = '#1f2937';
+            document.body.style.backgroundColor = '#1a202c';
+            currentThumbnailDataUrl = '';
+        }
+
+        function triggerAutoThumbnailGeneration() {
+            if (videoPlayer.src && videoPlayer.duration > 0) {
+                const seekTime = Math.max(1, Math.min(videoPlayer.duration * 0.10, 30));
+                videoPlayer.currentTime = seekTime;
+            } else {
+                resetThumbnailAndBackground();
+            }
+        }
+
+        function updatePlaylistDisplay() {
+            playlistList.innerHTML = '';
+            const filterText = playlistFilterInput.value.toLowerCase();
+
+            if (playlist.length === 0) {
+                playlistList.innerHTML = '<li class="text-center text-gray-400 py-2">No tracks in playlist.</li>';
+                return;
+            }
+
+            const filteredTracks = playlist.filter(track =>
+                track.title.toLowerCase().includes(filterText)
+            );
+
+            if (filteredTracks.length === 0) {
+                 playlistList.innerHTML = '<li class="text-center text-gray-400 py-2">No matching tracks found.</li>';
+                 return;
+            }
+
+            filteredTracks.forEach((track, index) => {
+                const originalIndex = playlist.indexOf(track);
+                const li = document.createElement('li');
+                li.classList.add('py-2', 'px-4', 'rounded-lg', 'cursor-pointer', 'hover:bg-gray-700', 'transition-colors', 'truncate');
+                if (originalIndex === currentTrackIndex) {
+                    li.classList.add('bg-blue-800', 'text-white');
+                } else {
+                    li.classList.add('text-gray-300');
+                }
+                li.textContent = `${originalIndex + 1}. ${track.title}`;
+                li.dataset.index = originalIndex;
+
+                li.addEventListener('click', () => {
+                    loadTrack(originalIndex);
+                    if (!isPlaying) {
+                        videoPlayer.play();
+                    }
+                });
+                playlistList.appendChild(li);
+            });
+        }
+
+        function loadTrack(index) {
+            if (index >= 0 && index < playlist.length) {
+                const track = playlist[index];
+                videoPlayer.src = track.url;
+                currentTrackTitleSpan.textContent = "Loading: " + (track.title || "Unknown Title");
+                videoPlayer.load();
+
+                lyricsDisplay.textContent = 'No lyrics loaded. Please load a .txt file.';
+                currentLyrics = '';
+
+                if (userDefinedThumbnails[track.url]) {
+                    currentThumbnailDataUrl = userDefinedThumbnails[track.url];
+                    displayCurrentThumbnail();
+                } else {
+                    currentThumbnailDataUrl = '';
+                    resetThumbnailAndBackground();
+                }
+
+                currentTrackIndex = index;
+                updatePlaylistDisplay();
+
+                if (videoPlayer.src) {
+                    captureThumbnailBtnPanel.classList.remove('hidden');
+                } else {
+                    captureThumbnailBtnPanel.classList.add('hidden');
+                }
+
+                if (isPlaying) {
+                    videoPlayer.play().catch(error => {
+                        console.warn("Autoplay was prevented for new track:", error);
+                        messageArea.textContent = 'Autoplay was blocked for new track. Click Play.';
+                        isPlaying = false;
+                        playPauseBtn.innerHTML = `
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v18l18-9L5 3z" />
+                                </svg>
+                            `;
+                    });
+                } else {
+                     playPauseBtn.innerHTML = `
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v18l18-9L5 3z" />
+                            </svg>
+                        `;
+                }
+            } else if (playlist.length === 0) {
+                messageArea.textContent = 'No tracks in playlist.';
+            } else {
+                isPlaying = false;
+                playPauseBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v18l18-9L5 3z" />
+                    </svg>
+                `;
+                seekSlider.value = 0;
+                currentTimeSpan.textContent = '0:00';
+                timeRemainingSpan.textContent = '-0:00';
+                currentTrackTitleSpan.textContent = 'Playback Finished';
+                messageArea.textContent = 'Playlist ended.';
+            }
+        }
+
+        function setPlayerView(view) {
+            thumbnailView.classList.add('hidden');
+            lyricsView.classList.add('hidden');
+            videoPlayer.style.display = 'none';
+            playlistView.classList.add('hidden');
+
+            panelViewButtons.forEach(btn => btn.classList.remove('active'));
+            mainViewToggleButtons.forEach(btn => btn.classList.remove('active'));
+
+            if (videoPlayer.src && currentTrackIndex !== -1 && (view === 'audio' || view === 'video')) {
+                captureThumbnailBtnPanel.classList.remove('hidden');
+            } else {
+                captureThumbnailBtnPanel.classList.add('hidden');
+            }
+
+
+            if (view === 'audio') {
+                thumbnailView.classList.remove('hidden');
+                viewAudioBtnMain.classList.add('active');
+                videoPlayer.muted = false;
+                videoPlayer.volume = volumeSlider.value / 100;
+                videoPlayer.controls = false;
+                displayCurrentThumbnail();
+            } else if (view === 'lyrics') {
+                lyricsView.classList.remove('hidden');
+                viewLyricsBtnPanel.classList.add('active');
+                videoPlayer.muted = false;
+                videoPlayer.volume = volumeSlider.value / 100;
+                videoPlayer.controls = false;
+            } else if (view === 'video') {
+                videoPlayer.style.display = 'block';
+                viewVideoBtnMain.classList.add('active');
+                videoPlayer.muted = false;
+                videoPlayer.volume = volumeSlider.value / 100;
+                videoPlayer.controls = true;
+            } else if (view === 'playlist') {
+                playlistView.classList.remove('hidden');
+                viewPlaylistBtnPanel.classList.add('active');
+                videoPlayer.muted = false;
+                videoPlayer.volume = volumeSlider.value / 100;
+                videoPlayer.controls = false;
+                updatePlaylistDisplay();
+            }
+            currentView = view;
+        }
+
+        // --- Event Listeners ---
+
+        mediaFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                if (file.type !== 'video/mp4' && file.type !== 'video/webm') {
+                    messageArea.textContent = 'Please select a valid MP4 or WebM video file.';
+                    currentTrackTitleSpan.textContent = 'No file selected';
+                    videoPlayer.src = '';
+                    isPlaying = false;
+                    playPauseBtn.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v18l18-9L5 3z" />
+                        </svg>
+                    `;
+                    seekSlider.value = 0;
+                    currentTimeSpan.textContent = '0:00';
+                    timeRemainingSpan.textContent = '-0:00';
+                    fullDurationSpan.textContent = '0:00';
+                    resetThumbnailAndBackground();
+                    captureThumbnailBtnPanel.classList.add('hidden');
+                    return;
+                }
+
+                messageArea.textContent = '';
+                playlist = [{ url: URL.createObjectURL(file), title: file.name }];
+                currentTrackIndex = 0;
+                loadTrack(currentTrackIndex);
+                leftSidebar.classList.remove('open');
+                overlay.classList.remove('open');
+            }
+        });
+
+        xspfFileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                try {
+                    const reader = new FileReader();
+                    reader.onload = async (e) => {
+                        const xmlString = e.target.result;
+                        const parser = new DOMParser();
+                        const xmlDoc = parser.parseFromString(xmlString, "application/xml");
+
+                        const trackList = [];
+                        const trackElements = xmlDoc.querySelectorAll('trackList track');
+                        trackElements.forEach(trackElement => {
+                            const location = trackElement.querySelector('location')?.textContent;
+                            const title = trackElement.querySelector('title')?.textContent;
+                            if (location) {
+                                let url;
+                                try {
+                                     if (location.startsWith('file:///')) {
+                                        url = location;
+                                    } else if (location.startsWith('http://') || location.startsWith('https://')) {
+                                        url = location;
+                                    } else {
+                                        const fileUrl = URL.createObjectURL(file);
+                                        const xspfBase = fileUrl.substring(0, fileUrl.lastIndexOf('/') + 1);
+                                        url = new URL(location, xspfBase).href;
+                                    }
+
+                                    const fileExtension = url.split('.').pop().toLowerCase();
+                                    if (fileExtension === 'mp4' || fileExtension === 'webm') {
+                                        trackList.push({ url: url, title: title || url.split('/').pop() });
+                                    } else {
+                                        console.warn(`Skipping unsupported file type in playlist: ${url}`);
+                                    }
+
+                                } catch (urlError) {
+                                    console.error(`Error processing URL from XSPF: ${location}`, urlError);
+                                }
+                            }
+                        });
+
+                        if (trackList.length > 0) {
+                            playlist = trackList;
+                            currentTrackIndex = 0;
+                            loadTrack(currentTrackIndex);
+                            messageArea.textContent = `Playlist "${file.name}" loaded with ${playlist.length} tracks.`;
+                            leftSidebar.classList.remove('open');
+                            overlay.classList.remove('open');
+                            setPlayerView('playlist');
+                        } else {
+                            messageArea.textContent = 'No valid or supported tracks found in XSPF playlist. Only MP4 and WebM video files are supported.';
+                            playlist = [];
+                            currentTrackIndex = -1;
+                            resetThumbnailAndBackground();
+                            currentTrackTitleSpan.textContent = 'No file selected';
+                            captureThumbnailBtnPanel.classList.add('hidden');
+                        }
+                    };
+                    reader.readAsText(file);
+                } catch (error) {
+                    messageArea.textContent = 'Error loading XSPF playlist.';
+                    console.error('XSPF parsing error:', error);
+                }
+            }
+        });
+
+        lyricsFileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                try {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        currentLyrics = e.target.result;
+                        lyricsDisplay.textContent = currentLyrics;
+                        messageArea.textContent = `Lyrics "${file.name}" loaded.`;
+                        if (currentTrackIndex !== -1) {
+                            setPlayerView('lyrics');
+                        }
+                        leftSidebar.classList.remove('open');
+                        overlay.classList.remove('open');
+                    };
+                    reader.readAsText(file);
+                } catch (error) {
+                    messageArea.textContent = 'Error loading lyrics file.';
+                    console.error('Lyrics loading error:', error);
+                }
+            }
+        });
+
+        playPauseBtn.addEventListener('click', () => {
+            if (playlist.length === 0) {
+                messageArea.textContent = 'Please select a media file or playlist first.';
+                return;
+            }
+
+            if (isPlaying) {
+                videoPlayer.pause();
+            } else {
+                videoPlayer.play().catch(error => {
+                    console.error("Error playing audio:", error);
+                    messageArea.textContent = 'Could not play audio. File might be corrupted or unsupported.';
+                });
+            }
+        });
+
+        prevBtn.addEventListener('click', () => {
+            if (playlist.length > 0) {
+                const prevIndex = (currentTrackIndex - 1 + playlist.length) % playlist.length;
+                loadTrack(prevIndex);
+                if (isPlaying) {
+                    videoPlayer.play();
+                }
+            } else {
+                messageArea.textContent = 'No playlist loaded to go to previous track.';
+            }
+        });
+
+        nextBtn.addEventListener('click', () => {
+            if (playlist.length > 0) {
+                const nextIndex = (currentTrackIndex + 1) % playlist.length;
+                loadTrack(nextIndex);
+                if (isPlaying) {
+                    videoPlayer.play();
+                }
+            } else {
+                messageArea.textContent = 'No playlist loaded to go to next track.';
+            }
+        });
+
+        loopToggleBtn.addEventListener('click', () => {
+            isLoopingPlaylist = !isLoopingPlaylist;
+            loopToggleBtn.classList.toggle('text-blue-400', isLoopingPlaylist);
+            loopToggleBtn.classList.toggle('text-gray-400', !isLoopingPlaylist);
+            videoPlayer.loop = false;
+            messageArea.textContent = `Playlist looping: ${isLoopingPlaylist ? 'On' : 'Off'}`;
+            saveSettings();
+        });
+
+        videoPlayer.addEventListener('play', () => {
+            isPlaying = true;
+            playPauseBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 4h4v16H6zM14 4h4v16h-4z" />
+                </svg>
+            `;
+            messageArea.textContent = '';
+            currentTrackTitleSpan.textContent = playlist[currentTrackIndex].title || "Unknown Title";
+        });
+
+        videoPlayer.addEventListener('pause', () => {
+            isPlaying = false;
+            playPauseBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v18l18-9L5 3z" />
+                </svg>
+            `;
+        });
+
+        videoPlayer.addEventListener('ended', () => {
+            if (isLoopingPlaylist && playlist.length > 0) {
+                loadTrack((currentTrackIndex + 1) % playlist.length);
+                videoPlayer.play();
+            } else if (currentTrackIndex < playlist.length - 1) {
+                loadTrack(currentTrackIndex + 1);
+                videoPlayer.play();
+            } else {
+                isPlaying = false;
+                playPauseBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v18l18-9L5 3z" />
+                    </svg>
+                `;
+                seekSlider.value = 0;
+                currentTimeSpan.textContent = '0:00';
+                timeRemainingSpan.textContent = '-0:00';
+                messageArea.textContent = 'Playlist finished.';
+                currentTrackTitleSpan.textContent = 'Playback Finished';
+                resetThumbnailAndBackground();
+                captureThumbnailBtnPanel.classList.add('hidden');
+            }
+        });
+
+        videoPlayer.addEventListener('timeupdate', () => {
+            if (!isNaN(videoPlayer.duration)) {
+                const percentage = (videoPlayer.currentTime / videoPlayer.duration) * 100;
+                seekSlider.value = percentage;
+                currentTimeSpan.textContent = formatTime(videoPlayer.currentTime);
+                timeRemainingSpan.textContent = `-${formatTime(videoPlayer.duration - videoPlayer.currentTime)}`;
+            }
+        });
+
+        videoPlayer.addEventListener('loadedmetadata', () => {
+            if (!isNaN(videoPlayer.duration)) {
+                fullDurationSpan.textContent = formatTime(videoPlayer.duration);
+                if (currentTrackIndex !== -1 && playlist[currentTrackIndex] && !userDefinedThumbnails[playlist[currentTrackIndex].url]) {
+                    triggerAutoThumbnailGeneration();
+                } else {
+                    displayCurrentThumbnail();
+                }
+            }
+        });
+
+        videoPlayer.addEventListener('seeked', () => {
+            if (currentTrackIndex !== -1 && playlist[currentTrackIndex] && !userDefinedThumbnails[playlist[currentTrackIndex].url]) {
+                generateAndStoreThumbnail();
+            }
+        });
+
+        seekSlider.addEventListener('input', () => {
+            if (!isNaN(videoPlayer.duration)) {
+                const seekTime = (seekSlider.value / 100) * videoPlayer.duration;
+                videoPlayer.currentTime = seekTime;
+            }
+        });
+
+        volumeSlider.addEventListener('input', () => {
+            const volume = volumeSlider.value / 100;
+            videoPlayer.volume = volume;
+            volumeValueSpan.textContent = `${volumeSlider.value}%`;
+            saveSettings();
+        });
+
+        volumeValueSpan.textContent = `${volumeSlider.value}%`;
+        videoPlayer.volume = volumeSlider.value / 100;
+
+        videoPlayer.addEventListener('error', (e) => {
+            let errorMsg = 'An unknown error occurred.';
+            switch (e.target.error.code) {
+                case e.target.error.MEDIA_ERR_ABORTED:
+                    errorMsg = 'Media playback aborted.';
+                    break;
+                case e.target.error.MEDIA_ERR_NETWORK:
+                    errorMsg = 'Network error during download.';
+                    break;
+                case e.target.error.MEDIA_ERR_DECODE:
+                    errorMsg = 'Media decoding error. File might be corrupted or unsupported.';
+                    break;
+                case e.target.error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                    errorMsg = 'Media source not supported. Check file type and codecs.';
+                    break;
+            }
+            messageArea.textContent = `Error: ${errorMsg}`;
+            isPlaying = false;
+            playPauseBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v18l18-9L5 3z" />
+                </svg>
+            `;
+            currentTrackTitleSpan.textContent = 'Error loading file';
+            console.error("Media error:", e.target.error);
+            captureThumbnailBtnPanel.classList.add('hidden');
+        });
+
+        // --- View Toggle Buttons (Left Vertical Panel) ---
+        viewLyricsBtnPanel.addEventListener('click', () => {
+            if (currentLyrics) {
+                setPlayerView('lyrics');
+            } else {
+                messageArea.textContent = 'No lyrics loaded. Please load a .txt file.';
+            }
+        });
+        viewPlaylistBtnPanel.addEventListener('click', () => setPlayerView('playlist'));
+        captureThumbnailBtnPanel.addEventListener('click', () => {
+            if (videoPlayer.src && videoPlayer.readyState >= 2 && currentTrackIndex !== -1 && playlist[currentTrackIndex]) {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = videoPlayer.videoWidth;
+                tempCanvas.height = videoPlayer.videoHeight;
+                const tempCtx = tempCanvas.getContext('2d');
+
+                try {
+                    tempCtx.drawImage(videoPlayer, 0, 0, tempCanvas.width, tempCanvas.height);
+                    const imgDataUrl = tempCanvas.toDataURL('image/png');
+
+                    userDefinedThumbnails[playlist[currentTrackIndex].url] = imgDataUrl;
+                    saveSettings();
+                    currentThumbnailDataUrl = imgDataUrl;
+                    messageArea.textContent = 'Thumbnail captured and saved!';
+                    displayCurrentThumbnail();
+                } catch (e) {
+                    messageArea.textContent = 'Could not capture thumbnail. Ensure video is playing and visible.';
+                    console.error('Thumbnail capture error:', e);
+                }
+            } else {
+                messageArea.textContent = 'No video loaded or ready to capture thumbnail.';
+            }
+        });
+
+
+        // --- View Toggle Buttons (Main Player) ---
+        viewAudioBtnMain.addEventListener('click', () => setPlayerView('audio'));
+        viewVideoBtnMain.addEventListener('click', () => {
+            if (videoPlayer.src) {
+                setPlayerView('video');
+            } else {
+                messageArea.textContent = 'No video loaded to display.';
+            }
+        });
+
+
+        // --- Sidebar Logic ---
+        openSidebarBtn.addEventListener('click', () => {
+            leftSidebar.classList.toggle('open');
+            overlay.classList.toggle('open');
+        });
+
+        closeSidebarBtn.addEventListener('click', () => {
+            leftSidebar.classList.remove('open');
+            overlay.classList.remove('open');
+        });
+
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) { // Only close if overlay itself is clicked, not children
+                leftSidebar.classList.remove('open');
+                overlay.classList.remove('open');
+            }
+        });
+
+        // --- Drag and Drop functionality ---
+        playerContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            playerContainer.classList.add('drag-over');
+            dragDropHint.classList.remove('hidden');
+        });
+
+        playerContainer.addEventListener('dragleave', (e) => {
+            playerContainer.classList.remove('drag-over');
+            dragDropHint.classList.add('hidden');
+        });
+
+        playerContainer.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            playerContainer.classList.remove('drag-over');
+            dragDropHint.classList.add('hidden');
+
+            const files = e.dataTransfer.files;
+            if (files.length === 0) return;
+
+            let loadedFromDrop = false;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.type === 'video/mp4' || file.type === 'video/webm') {
+                    playlist = [{ url: URL.createObjectURL(file), title: file.name }];
+                    currentTrackIndex = 0;
+                    loadTrack(currentTrackIndex);
+                    if (!isPlaying) videoPlayer.play();
+                    loadedFromDrop = true;
+                    setPlayerView('audio');
+                    break;
+                } else if (file.type === 'application/xspf+xml' || file.name.endsWith('.xspf')) {
+                    try {
+                        const reader = new FileReader();
+                        reader.onload = async (e) => {
+                            const xmlString = e.target.result;
+                            const parser = new DOMParser();
+                            const xmlDoc = parser.parseFromString(xmlString, "application/xml");
+
+                            const trackElements = xmlDoc.querySelectorAll('trackList track');
+                            const droppedPlaylist = [];
+                            trackElements.forEach(trackElement => {
+                                const location = trackElement.querySelector('location')?.textContent;
+                                const title = trackElement.querySelector('title')?.textContent;
+                                if (location) {
+                                    let url;
+                                    try {
+                                        const fileUrl = URL.createObjectURL(file);
+                                        const xspfBase = fileUrl.substring(0, fileUrl.lastIndexOf('/') + 1);
+                                        url = new URL(location, xspfBase).href;
+
+                                        const fileExtension = url.split('.').pop().toLowerCase();
+                                        if (fileExtension === 'mp4' || fileExtension === 'webm') {
+                                            droppedPlaylist.push({ url: url, title: title || url.split('/').pop() });
+                                        }
+                                    } catch (urlError) {
+                                        console.error(`Error processing URL from XSPF: ${location}`, urlError);
+                                    }
+                                }
+                            });
+
+                            if (droppedPlaylist.length > 0) {
+                                playlist = droppedPlaylist;
+                                currentTrackIndex = 0;
+                                loadTrack(currentTrackIndex);
+                                if (!isPlaying) videoPlayer.play();
+                                messageArea.textContent = `Playlist "${file.name}" loaded with ${droppedPlaylist.length} tracks.`;
+                                setPlayerView('playlist');
+                            } else {
+                                messageArea.textContent = 'No supported tracks found in dropped XSPF playlist. Only MP4 and WebM video files are supported.';
+                            }
+                        };
+                        reader.readAsText(file);
+                        loadedFromDrop = true;
+                        break;
+                    } catch (error) {
+                        messageArea.textContent = `Error reading XSPF file: ${file.name}`;
+                        console.error('XSPF drop error:', error);
+                    }
+                } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+                    try {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            currentLyrics = e.target.result;
+                            lyricsDisplay.textContent = currentLyrics;
+                            messageArea.textContent = `Lyrics "${file.name}" loaded via drag-and-drop.`;
+                            if (currentTrackIndex !== -1 && currentView !== 'lyrics') {
+                                setPlayerView('lyrics');
+                            }
+                        };
+                        reader.readAsText(file);
+                        loadedFromDrop = true;
+                        break;
+                    } catch (error) {
+                        messageArea.textContent = `Error reading lyrics file: ${file.name}`;
+                        console.error('Lyrics drop error:', error);
+                    }
+                }
+            }
+            if (!loadedFromDrop) {
+                messageArea.textContent = 'Dropped file type not supported or recognized.';
+            }
+        });
+
+        playlistFilterInput.addEventListener('input', updatePlaylistDisplay);
+
+        // --- About Modal Logic ---
+        aboutBtn.addEventListener('click', () => {
+            aboutModalOverlay.classList.remove('hidden');
+            setTimeout(() => { // Small delay for transition to work
+                aboutModalOverlay.classList.add('open');
+            }, 10);
+        });
+
+        closeAboutModalBtn.addEventListener('click', () => {
+            aboutModalOverlay.classList.remove('open');
+            setTimeout(() => { // Small delay for transition to work
+                aboutModalOverlay.classList.add('hidden');
+            }, 300); // Match transition duration
+        });
+
+        // Close modal if clicking outside
+        aboutModalOverlay.addEventListener('click', (event) => {
+            if (event.target === aboutModalOverlay) {
+                closeAboutModalBtn.click();
+            }
+        });
+
+
+        loadSettings();
+        setPlayerView('audio');
+        updatePlaylistDisplay();
+    </script>
+</body>
+</html>
