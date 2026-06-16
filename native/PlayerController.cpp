@@ -1,6 +1,8 @@
 #include "PlayerController.h"
 #include <QFileInfo>
 #include <QUrl>
+#include <QFile>
+#include <QTextStream>
 
 PlayerController::PlayerController(QObject *parent)
     : QObject(parent)
@@ -148,4 +150,17 @@ void PlayerController::handleVideoFrame(const QVideoFrame &frame)
         QColor avgColor(r / count, g / count, b / count);
         emit backgroundColorChanged(avgColor.name());
     }
+}
+
+bool PlayerController::writeTextToFile(const QString &filePath, const QString &content)
+{
+    QUrl url(filePath);
+    QString localPath = url.isLocalFile() ? url.toLocalFile() : filePath;
+    QFile file(localPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        return false;
+    QTextStream out(&file);
+    out << content;
+    file.close();
+    return true;
 }
