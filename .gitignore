@@ -1,3 +1,31 @@
-node_modules/
-.DS_Store
+# Dependency directories
+**/node_modules/
+/jspm_packages/
+
+# Native C++ build outputs
+/native/build/
+
+# Electron packaging / compilation outputs
+/electron/dist/
+/electron/out/
+
+# Log files and database locks
 *.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# System & OS Files
+.DS_Store
+Thumbs.db
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
