@@ -8,7 +8,7 @@ This repository hosts two distinct implementations:
 
 ---
 
-## 🚀 Native C++ & Qt6 Version (Recommended)
+## Native C++ & Qt6 Version (Recommended)
 
 The native desktop implementation is designed for lightweight footprint (~20MB RAM) and hardware-accelerated playback.
 
@@ -22,7 +22,7 @@ To build and run the native version, see the **[Native C++ Documentation](file:/
 
 ---
 
-## 🌐 Electron & Web Version (Legacy Prototype)
+## Electron & Web Version (Legacy Prototype)
 
 The original HTML5-based Electron version runs a web-tech-based renderer.
 
@@ -47,5 +47,5 @@ For detailed configurations, see the code in the root directory.
 
 ---
 
-## 📜 License
+## License
 This project is licensed under the MIT License. See the `LICENSE` file for details.
