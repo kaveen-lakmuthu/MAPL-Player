@@ -10,6 +10,7 @@
 #include <QDateTime>
 #include <QBuffer>
 #include <QtQml/QQmlEngine>
+#include <QProcess>
 
 class PlayerController : public QObject
 {
@@ -39,12 +40,14 @@ public:
     
     Q_INVOKABLE QString getCleanFileName(const QString &filePath) const;
     Q_INVOKABLE bool writeTextToFile(const QString &filePath, const QString &content);
+    Q_INVOKABLE void generateTimelinePreviews(const QString &trackUrl, double durationSec);
 
 signals:
     void videoSinkChanged();
     void currentTrackTitleChanged();
     void backgroundColorChanged(const QString &hexColor);
     void thumbnailCaptured(const QString &trackUrl, const QString &base64Image);
+    void timelinePreviewsReady(const QString &trackUrl, const QString &spriteSheetPath);
 
 private slots:
     void handleVideoFrame(const QVideoFrame &frame);
@@ -54,6 +57,10 @@ private:
     QString m_currentTrackTitle;
     QImage m_lastImage;
     qint64 m_lastFrameTime;
+    
+    QProcess* m_previewProcess;
+    QString m_currentPreviewTrack;
+    QString m_currentPreviewPath;
 };
 
 #endif // PLAYERCONTROLLER_H

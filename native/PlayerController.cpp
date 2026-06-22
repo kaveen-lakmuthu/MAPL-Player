@@ -3,11 +3,16 @@
 #include <QUrl>
 #include <QFile>
 #include <QTextStream>
+#include <QCryptographicHash>
+#include <QDir>
+#include <QStandardPaths>
+#include <QDebug>
 
 PlayerController::PlayerController(QObject *parent)
     : QObject(parent)
     , m_videoSink(nullptr)
     , m_lastFrameTime(0)
+    , m_previewProcess(nullptr)
 {
 }
 
@@ -15,6 +20,13 @@ PlayerController::~PlayerController()
 {
     if (m_videoSink) {
         disconnect(m_videoSink, &QVideoSink::videoFrameChanged, this, &PlayerController::handleVideoFrame);
+    }
+    if (m_previewProcess) {
+        if (m_previewProcess->state() != QProcess::NotRunning) {
+            m_previewProcess->kill();
+            m_previewProcess->waitForFinished();
+        }
+        delete m_previewProcess;
     }
 }
 
@@ -163,4 +175,70 @@ bool PlayerController::writeTextToFile(const QString &filePath, const QString &c
     out << content;
     file.close();
     return true;
+}
+
+void PlayerController::generateTimelinePreviews(const QString &trackUrl, double durationSec)
+{
+    if (trackUrl.isEmpty() || durationSec <= 0) {
+        return;
+    }
+
+    QUrl url(trackUrl);
+    QString localInput = url.isLocalFile() ? url.toLocalFile() : trackUrl;
+
+    if (!QFile::exists(localInput)) {
+        qDebug() << "Timeline preview generation: File does not exist locally:" << localInput;
+        return;
+    }
+
+    // Compute MD5 hash of trackUrl to generate a unique cache filename
+    QByteArray hash = QCryptographicHash::hash(trackUrl.toUtf8(), QCryptographicHash::Md5).toHex();
+    QString cacheDir = QDir::homePath() + "/.cache/mapl-player/previews";
+    QDir().mkpath(cacheDir);
+    QString cachePath = cacheDir + "/" + hash + ".jpg";
+
+    m_currentPreviewTrack = trackUrl;
+    m_currentPreviewPath = cachePath;
+
+    // Check if already in cache
+    if (QFile::exists(cachePath)) {
+        qDebug() << "Timeline preview loaded from cache:" << cachePath;
+        emit timelinePreviewsReady(trackUrl, cachePath);
+        return;
+    }
+
+    // Cancel any running preview process
+    if (m_previewProcess) {
+        if (m_previewProcess->state() != QProcess::NotRunning) {
+            m_previewProcess->kill();
+            m_previewProcess->waitForFinished();
+        }
+        delete m_previewProcess;
+        m_previewProcess = nullptr;
+    }
+
+    m_previewProcess = new QProcess(this);
+
+    QStringList arguments;
+    arguments << "-y"
+              << "-i" << localInput
+              << "-vf" << QString("fps=100/%1,scale=160:90,tile=10x10").arg(durationSec)
+              << "-frames:v" << "1"
+              << "-an"
+              << cachePath;
+
+    connect(m_previewProcess, &QProcess::finished, this, [this, trackUrl, cachePath](int exitCode, QProcess::ExitStatus exitStatus) {
+        if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+            qDebug() << "Timeline preview successfully generated:" << cachePath;
+            if (m_currentPreviewTrack == trackUrl) {
+                emit timelinePreviewsReady(trackUrl, cachePath);
+            }
+        } else {
+            qWarning() << "Timeline preview generation failed for:" << trackUrl << "exit code:" << exitCode;
+            QFile::remove(cachePath);
+        }
+    });
+
+    qDebug() << "Starting timeline preview generation for:" << localInput << "to" << cachePath;
+    m_previewProcess->start("ffmpeg", arguments);
 }

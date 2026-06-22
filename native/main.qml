@@ -52,6 +52,7 @@ ApplicationWindow {
     property string currentView: "audio"
     property bool sidebarOpen: false
     property string currentThumbnailDataUrl: ""
+    property string currentTimelinePreviewSheet: ""
     property bool controlsVisible: true
 
     onVisibilityChanged: {
@@ -237,6 +238,18 @@ ApplicationWindow {
         onThumbnailCaptured: (trackUrl, base64) => {
             currentThumbnailDataUrl = "data:image/png;base64," + base64
         }
+
+        onTimelinePreviewsReady: (trackUrl, spriteSheetPath) => {
+            console.log("[DEBUG] timelinePreviewsReady signal received. trackUrl:", trackUrl, "spriteSheetPath:", spriteSheetPath)
+            var currentSource = player.source.toString()
+            console.log("[DEBUG] Current player source:", currentSource)
+            if (currentSource === trackUrl || currentSource.indexOf(trackUrl) !== -1 || trackUrl.indexOf(currentSource) !== -1) {
+                currentTimelinePreviewSheet = "file://" + spriteSheetPath
+                console.log("[DEBUG] Loaded timeline preview sheet:", currentTimelinePreviewSheet)
+            } else {
+                console.log("[DEBUG] Warning: Track URL mismatch!")
+            }
+        }
     }
 
     SubtitleGenerator {
@@ -289,6 +302,24 @@ ApplicationWindow {
         
         onErrorOccurred: (error, errorString) => {
             showMessage("Media Error: " + errorString)
+        }
+
+        onDurationChanged: {
+            console.log("[DEBUG] MediaPlayer duration changed to:", duration, "source:", player.source.toString())
+            if (duration > 0 && player.source.toString() !== "") {
+                var lowerUrl = player.source.toString().toLowerCase()
+                var isVideo = lowerUrl.endsWith(".mp4") || lowerUrl.endsWith(".mkv") || 
+                              lowerUrl.endsWith(".webm") || lowerUrl.endsWith(".avi") || 
+                              lowerUrl.endsWith(".mov") || lowerUrl.endsWith(".flv") || 
+                              lowerUrl.endsWith(".m4v") || lowerUrl.endsWith(".ogv") || 
+                              lowerUrl.endsWith(".ts")
+                if (isVideo) {
+                    console.log("[DEBUG] Generating timeline previews for:", player.source.toString())
+                    controller.generateTimelinePreviews(player.source.toString(), duration / 1000.0)
+                } else {
+                    console.log("[DEBUG] Track is not a video file.")
+                }
+            }
         }
 
         onPositionChanged: {
@@ -2127,6 +2158,93 @@ ApplicationWindow {
                                 }
                             }
 
+                            // Sibling container for hover previews that sits above the seekSlider
+                            Item {
+                                anchors.fill: seekSlider
+                                z: 9999
+                                
+                                MouseArea {
+                                    id: seekHoverArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    acceptedButtons: Qt.NoButton
+                                    onEntered: console.log("[DEBUG] Mouse entered seekHoverArea. containsMouse:", containsMouse)
+                                    onExited: console.log("[DEBUG] Mouse exited seekHoverArea. containsMouse:", containsMouse)
+                                    onPositionChanged: (mouse) => {
+                                        // console.log("[DEBUG] Mouse position changed to X:", mouse.x)
+                                    }
+                                }
+                                
+                                Rectangle {
+                                    id: previewCard
+                                    visible: seekHoverArea.containsMouse && currentTimelinePreviewSheet !== "" && player.duration > 0
+                                    width: 164
+                                    height: 114
+                                    color: Qt.rgba(15/255.0, 23/255.0, 42/255.0, 0.95)
+                                    border.color: "#3b82f6"
+                                    border.width: 1.5
+                                    radius: 6
+                                    
+                                    x: Math.max(0, Math.min(seekSlider.width - width, seekHoverArea.mouseX - width / 2))
+                                    y: -height - 8
+                                    
+                                    Column {
+                                        anchors.fill: parent
+                                        anchors.margins: 2
+                                        spacing: 2
+                                        
+                                        Item {
+                                            width: 160
+                                            height: 90
+                                            clip: true
+                                            
+                                            Rectangle {
+                                                anchors.fill: parent
+                                                color: "#0f172a"
+                                                radius: 4
+                                                clip: true
+                                                
+                                                Image {
+                                                    id: previewImage
+                                                    source: currentTimelinePreviewSheet
+                                                    sourceClipRect: {
+                                                        if (player.duration <= 0 || seekSlider.width <= 0) return Qt.rect(0, 0, 160, 90);
+                                                        var trackWidth = seekSlider.width - seekSlider.leftPadding - seekSlider.rightPadding;
+                                                        var localX = Math.max(0, Math.min(trackWidth, seekHoverArea.mouseX - seekSlider.leftPadding));
+                                                        var pct = localX / trackWidth;
+                                                        var index = Math.max(0, Math.min(99, Math.floor(pct * 100)));
+                                                        var col = index % 10;
+                                                        var row = Math.floor(index / 10);
+                                                        return Qt.rect(col * 160, row * 90, 160, 90);
+                                                    }
+                                                    width: 160
+                                                    height: 90
+                                                    fillMode: Image.Stretch
+                                                    asynchronous: true
+                                                }
+                                            }
+                                        }
+                                        
+                                        Text {
+                                            width: parent.width
+                                            horizontalAlignment: Text.AlignHCenter
+                                            color: "#e2e8f0"
+                                            font.pixelSize: 11
+                                            font.bold: true
+                                            font.family: "Inter"
+                                            text: {
+                                                if (seekSlider.width <= 0) return "0:00";
+                                                var trackWidth = seekSlider.width - seekSlider.leftPadding - seekSlider.rightPadding;
+                                                var localX = Math.max(0, Math.min(trackWidth, seekHoverArea.mouseX - seekSlider.leftPadding));
+                                                var pct = localX / trackWidth;
+                                                var sec = pct * (player.duration / 1000.0);
+                                                return formatTime(sec);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             Text {
                                 text: player.duration > 0 ? ("-" + formatTime(Math.max(0, player.duration - player.position) / 1000.0) + " / " + formatTime(player.duration / 1000.0)) : "0:00"
                                 color: "#94a3b8"
@@ -3230,6 +3348,7 @@ ApplicationWindow {
             subtitleChunks = []
             activeSubtitleText = ""
             currentLyrics = ""
+            currentTimelinePreviewSheet = ""
             
             currentTrackIndex = index
             
