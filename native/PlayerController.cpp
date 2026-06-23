@@ -224,6 +224,8 @@ void PlayerController::generateTimelinePreviews(const QString &trackUrl, double 
 
     QStringList arguments;
     arguments << "-y"
+              << "-hwaccel" << "auto"      // Use hardware-accelerated decoding if available to minimize CPU and latency
+              << "-discard" << "nokey"     // Tell demuxer to discard non-keyframes for ultra-fast seek/read
               << "-skip_frame" << "nokey"  // Decode only keyframes for ultra-fast generation and low CPU usage
               << "-threads" << "2"         // Limit ffmpeg to 2 threads to prevent high CPU utilization spikes
               << "-i" << localInput

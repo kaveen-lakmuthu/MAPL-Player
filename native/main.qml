@@ -2254,7 +2254,10 @@ ApplicationWindow {
 
                                 // Sibling container for hover previews that sits above the seekSlider
                                 Item {
-                                    anchors.fill: seekSlider
+                                    anchors.left: seekSlider.left
+                                    anchors.right: seekSlider.right
+                                    anchors.verticalCenter: seekSlider.verticalCenter
+                                    height: 80  // Generous 80px height centered on the seekbar for easy hover tracking without vertical cursor drift exit
                                     z: 9999
                                     
                                     MouseArea {
@@ -2271,7 +2274,8 @@ ApplicationWindow {
                                         
                                         // Premium glassmorphism design and custom shadow colors
                                         width: 176
-                                        height: previewColumn.implicitHeight + 12
+                                        height: (subtitleChunks && subtitleChunks.length > 0) ? 156 : 126
+                                        clip: true
                                         color: Qt.rgba(15/255.0, 23/255.0, 42/255.0, 0.95)
                                         border.color: "#3b82f6"
                                         border.width: 1.5
@@ -2283,7 +2287,8 @@ ApplicationWindow {
                                             var centerX = seekSlider.leftPadding + hoverPercent * trackWidth;
                                             return Math.max(0, Math.min(seekSlider.width - width, centerX - width / 2));
                                         }
-                                        y: -height - 8
+                                        anchors.bottom: parent.top
+                                        anchors.bottomMargin: 8
                                         
                                         // Unify coordinates for hover vs active dragging
                                         property real hoverPercent: {
@@ -2301,7 +2306,7 @@ ApplicationWindow {
                                         }
 
                                         // Smooth entrance/exit transitions and dynamic height/position updating
-                                        property bool showPreview: (seekHoverArea.containsMouse || seekSlider.pressed) && currentTimelinePreviewSheet !== "" && player.duration > 0
+                                        property bool showPreview: (seekHoverArea.containsMouse || seekSlider.pressed) && player.duration > 0
                                         opacity: showPreview ? 1.0 : 0.0
                                         scale: showPreview ? 1.0 : 0.8
                                         visible: opacity > 0.0
@@ -2310,11 +2315,12 @@ ApplicationWindow {
                                             NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
                                         }
                                         Behavior on scale {
-                                            SpringAnimation { spring: 2.5; damping: 0.65; mass: 0.8 }
+                                            NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
                                         }
                                         
                                         Column {
                                             id: previewColumn
+                                            visible: currentTimelinePreviewSheet !== ""
                                             width: parent.width - 8
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             anchors.top: parent.top
@@ -2385,6 +2391,51 @@ ApplicationWindow {
                                                     }
                                                     return "";
                                                 }
+                                            }
+                                        }
+                                        
+                                        Column {
+                                            id: loadingColumn
+                                            anchors.centerIn: parent
+                                            spacing: 8
+                                            visible: currentTimelinePreviewSheet === ""
+                                            
+                                            Item {
+                                                width: 32
+                                                height: 32
+                                                anchors.horizontalCenter: parent.horizontalCenter
+                                                
+                                                Canvas {
+                                                    id: spinnerCanvas
+                                                    anchors.fill: parent
+                                                    onPaint: {
+                                                        var ctx = getContext("2d");
+                                                        ctx.reset();
+                                                        ctx.strokeStyle = "#3b82f6";
+                                                        ctx.lineWidth = 3;
+                                                        ctx.beginPath();
+                                                        ctx.arc(16, 16, 12, 0, Math.PI * 1.5);
+                                                        ctx.stroke();
+                                                    }
+                                                }
+                                                
+                                                RotationAnimator {
+                                                    target: spinnerCanvas
+                                                    from: 0
+                                                    to: 360
+                                                    duration: 1000
+                                                    running: previewCard.showPreview && currentTimelinePreviewSheet === ""
+                                                    loops: Animation.Infinite
+                                                }
+                                            }
+                                            
+                                            Text {
+                                                text: "Preparing previews..."
+                                                color: "#94a3b8"
+                                                font.pixelSize: 11
+                                                font.bold: true
+                                                font.family: "Inter"
+                                                anchors.horizontalCenter: parent.horizontalCenter
                                             }
                                         }
                                     }
