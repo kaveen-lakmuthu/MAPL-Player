@@ -18,6 +18,7 @@ ApplicationWindow {
     // --- State Properties ---
     property var playlist: []
     property int currentTrackIndex: -1
+    property bool playFolderToggle: controller.loadPlayFolderToggle()
     property string currentLyrics: ""
     property var subtitleChunks: []
     property string activeSubtitleText: ""
@@ -61,6 +62,10 @@ ApplicationWindow {
         } else {
             sidebarOpen = false
         }
+    }
+
+    onPlayFolderToggleChanged: {
+        syncPlaylistForFolderToggle()
     }
 
     function toggleFullscreen() {
@@ -379,13 +384,7 @@ ApplicationWindow {
         title: "Select Video/Audio File"
         nameFilters: ["Media Files (*.mp4 *.webm *.mp3 *.wav *.ogg)"]
         onAccepted: {
-            var fileUrl = selectedFile.toString()
-            var fileName = controller.getCleanFileName(fileUrl)
-            playlist = [{ url: fileUrl, title: fileName }]
-            currentTrackIndex = 0
-            loadTrack(0)
-            player.play()
-            sidebarOpen = false
+            loadMediaFile(selectedFile)
         }
     }
 
@@ -516,13 +515,7 @@ ApplicationWindow {
             sidebarOpen = false
         }
         else {
-            var fileName = controller.getCleanFileName(urlStr)
-            playlist = [{ url: urlStr, title: fileName }]
-            currentTrackIndex = 0
-            loadTrack(0)
-            player.play()
-            sidebarOpen = false
-            showMessage("Media track loaded.")
+            loadMediaFile(urlStr)
         }
     }
 
@@ -958,7 +951,7 @@ ApplicationWindow {
 
                                 Text {
                                     id: currentTrackTitleText
-                                    text: currentTrackIndex >= 0 ? playlist[currentTrackIndex].title : "No file loaded"
+                                    text: (currentTrackIndex >= 0 && playlist[currentTrackIndex]) ? playlist[currentTrackIndex].title : "No file loaded"
                                     color: "white"
                                     font.pixelSize: 22
                                     font.bold: true
@@ -969,7 +962,7 @@ ApplicationWindow {
                                 }
 
                                 Text {
-                                    text: currentTrackIndex >= 0 ? playlist[currentTrackIndex].artist || "Unknown Artist" : ""
+                                    text: (currentTrackIndex >= 0 && playlist[currentTrackIndex]) ? (playlist[currentTrackIndex].artist || "Unknown Artist") : ""
                                     color: "#94a3b8"
                                     font.pixelSize: 14
                                     Layout.fillWidth: true
@@ -1144,7 +1137,7 @@ ApplicationWindow {
                                         Text { text: "FORMAT"; color: "#64748b"; font.pixelSize: 9; font.letterSpacing: 1.5 }
                                         Text {
                                             text: {
-                                                var url = currentTrackIndex >= 0 ? playlist[currentTrackIndex].url : ""
+                                                var url = (currentTrackIndex >= 0 && playlist[currentTrackIndex]) ? playlist[currentTrackIndex].url : ""
                                                 var ext = url.split('.').pop().toUpperCase()
                                                 return ext || "—"
                                             }
@@ -1999,6 +1992,83 @@ ApplicationWindow {
                         ColumnLayout {
                             anchors.fill: parent
                             spacing: 12
+
+                            // Custom Card Container for Auto-load folder files setting
+                            Rectangle {
+                                id: autoLoadSettingCard
+                                Layout.fillWidth: true
+                                height: 42
+                                color: autoLoadMouseArea.containsMouse ? "#1e293b" : "#0f172a" // Highlight on hover
+                                radius: 8
+                                border.color: autoLoadMouseArea.containsMouse ? "#3b82f6" : "#334155" // Accent border on hover
+                                border.width: 1
+
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 12
+                                    anchors.rightMargin: 12
+                                    spacing: 12
+
+                                    Text {
+                                        text: "📁 Auto-load folder files"
+                                        color: "#e2e8f0" // High-contrast Slate-200 text
+                                        font.pixelSize: 13
+                                        font.bold: true
+                                        verticalAlignment: Text.AlignVCenter
+                                        Layout.fillWidth: true
+                                    }
+
+                                    Item {
+                                        id: switchControl
+                                        width: 36
+                                        height: 20
+                                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                        
+                                        property bool checked: playFolderToggle
+
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            radius: 10
+                                            color: switchControl.checked ? "#3b82f6" : "#334155"
+                                            border.color: switchControl.checked ? "#60a5fa" : "#475569"
+                                            border.width: 1.5
+
+                                            Behavior on color {
+                                                ColorAnimation { duration: 150 }
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            id: switchHandle
+                                            width: 14
+                                            height: 14
+                                            radius: 7
+                                            color: "white"
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            x: switchControl.checked ? 19 : 3
+
+                                            Behavior on x {
+                                                NumberAnimation { duration: 150; easing.type: Easing.InOutQuad }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: autoLoadMouseArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        playFolderToggle = !playFolderToggle;
+                                        controller.savePlayFolderToggle(playFolderToggle);
+                                        showMessage("Folder playlist mode: " + (playFolderToggle ? "Enabled" : "Disabled"));
+                                    }
+                                }
+                            }
 
                             TextField {
                                 id: filterField
@@ -3445,6 +3515,68 @@ ApplicationWindow {
             }
             
             checkForAutoSubtitles(track.url)
+        }
+    }
+
+    function loadMediaFile(fileUrl) {
+        var urlStr = fileUrl.toString()
+        var fileName = controller.getCleanFileName(urlStr)
+        
+        if (playFolderToggle) {
+            var folderTracks = controller.getFilesInFolder(urlStr)
+            if (folderTracks.length > 0) {
+                playlist = folderTracks
+                var selectedIndex = 0
+                for (var i = 0; i < folderTracks.length; i++) {
+                    if (folderTracks[i].url === urlStr) {
+                        selectedIndex = i
+                        break
+                    }
+                }
+                currentTrackIndex = selectedIndex
+                loadTrack(selectedIndex)
+                showMessage("Loaded folder playlist (" + folderTracks.length + " tracks)")
+            } else {
+                playlist = [{ url: urlStr, title: fileName }]
+                currentTrackIndex = 0
+                loadTrack(0)
+            }
+        } else {
+            playlist = [{ url: urlStr, title: fileName }]
+            currentTrackIndex = 0
+            loadTrack(0)
+        }
+        player.play()
+        sidebarOpen = false
+    }
+
+    function syncPlaylistForFolderToggle() {
+        if (playlist.length === 0 || currentTrackIndex < 0) return;
+        
+        var currentTrack = playlist[currentTrackIndex]
+        if (!currentTrack) return;
+        
+        var currentUrl = currentTrack.url.toString()
+        var currentTitle = currentTrack.title
+        
+        if (playFolderToggle) {
+            var folderTracks = controller.getFilesInFolder(currentUrl)
+            if (folderTracks.length > 0) {
+                var newIndex = 0
+                for (var i = 0; i < folderTracks.length; i++) {
+                    if (folderTracks[i].url === currentUrl) {
+                        newIndex = i
+                        break
+                    }
+                }
+                playlist = folderTracks
+                currentTrackIndex = newIndex
+                showMessage("Folder playlist loaded (" + folderTracks.length + " tracks)")
+            }
+        } else {
+            playlist = [{ url: currentUrl, title: currentTitle }]
+            currentTrackIndex = 0
+            showMessage("Folder playlist cleared")
         }
     }
 

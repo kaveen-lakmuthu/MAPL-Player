@@ -242,3 +242,48 @@ void PlayerController::generateTimelinePreviews(const QString &trackUrl, double 
     qDebug() << "Starting timeline preview generation for:" << localInput << "to" << cachePath;
     m_previewProcess->start("ffmpeg", arguments);
 }
+
+QVariantList PlayerController::getFilesInFolder(const QString &fileUrl)
+{
+    QVariantList fileList;
+    QUrl url(fileUrl);
+    if (!url.isLocalFile()) {
+        qDebug() << "getFilesInFolder: Not a local file URL:" << fileUrl;
+        return fileList;
+    }
+
+    QString localPath = url.toLocalFile();
+    QFileInfo fileInfo(localPath);
+    QDir dir = fileInfo.dir();
+
+    // Define standard media filters for scan
+    QStringList filters;
+    filters << "*.mp4" << "*.webm" << "*.mkv" << "*.avi" << "*.mov" << "*.flv" 
+            << "*.m4v" << "*.ts" << "*.ogv"
+            << "*.mp3" << "*.wav" << "*.ogg" << "*.m4a" << "*.flac";
+    dir.setNameFilters(filters);
+    dir.setFilter(QDir::Files | QDir::NoSymLinks);
+    dir.setSorting(QDir::Name | QDir::LocaleAware);
+
+    QFileInfoList list = dir.entryInfoList();
+    for (const QFileInfo &info : list) {
+        QVariantMap map;
+        map["url"] = QUrl::fromLocalFile(info.absoluteFilePath()).toString();
+        map["title"] = info.fileName();
+        fileList.append(map);
+    }
+
+    return fileList;
+}
+
+void PlayerController::savePlayFolderToggle(bool enabled)
+{
+    QSettings settings("MAPL", "MAPLPlayerNative");
+    settings.setValue("playFolderToggle", enabled);
+}
+
+bool PlayerController::loadPlayFolderToggle() const
+{
+    QSettings settings("MAPL", "MAPLPlayerNative");
+    return settings.value("playFolderToggle", false).toBool();
+}

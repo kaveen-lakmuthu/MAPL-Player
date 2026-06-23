@@ -41,6 +41,9 @@ public:
     Q_INVOKABLE QString getCleanFileName(const QString &filePath) const;
     Q_INVOKABLE bool writeTextToFile(const QString &filePath, const QString &content);
     Q_INVOKABLE void generateTimelinePreviews(const QString &trackUrl, double durationSec);
+    Q_INVOKABLE QVariantList getFilesInFolder(const QString &fileUrl);
+    Q_INVOKABLE void savePlayFolderToggle(bool enabled);
+    Q_INVOKABLE bool loadPlayFolderToggle() const;
 
 signals:
     void videoSinkChanged();
