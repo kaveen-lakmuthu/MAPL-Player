@@ -71,6 +71,8 @@ ApplicationWindow {
     property bool subtitleDetectionDone: false  // guard against duplicate detection per file
     property string activeSubtitleUrl: ""
     property int activeEmbeddedTrackIndex: -1
+    property var mediaChapters: []
+    property bool chaptersPopupVisible: false
 
     // Set by main.cpp via engine.setInitialProperties() when MAPL is launched
     // by double-clicking a file in Dolphin or via xdg-open / command line.
@@ -2394,6 +2396,24 @@ ApplicationWindow {
                                                 y: 0
                                             }
                                         }
+
+                                        // Timeline ticks indicating chapter marks
+                                        Repeater {
+                                            model: (player.duration > 0) ? mediaChapters : []
+                                            delegate: Rectangle {
+                                                width: 3
+                                                height: parent.height
+                                                color: "#0f172a"
+                                                visible: modelData.time > 0
+                                                x: {
+                                                    var durSec = player.duration / 1000.0;
+                                                    if (durSec <= 0) return 0;
+                                                    return (modelData.time / durSec) * parent.width - width / 2;
+                                                }
+                                                y: 0
+                                                z: 10
+                                            }
+                                        }
                                     }
 
                                     handle: Rectangle {
@@ -2436,7 +2456,12 @@ ApplicationWindow {
                                         
                                         // Premium glassmorphism design and custom shadow colors
                                         width: 176
-                                        height: (subtitleChunks && subtitleChunks.length > 0) ? 156 : 126
+                                        height: {
+                                            var h = 126;
+                                            if (subtitleChunks && subtitleChunks.length > 0) h += 30;
+                                            if (mediaChapters && mediaChapters.length > 0) h += 18;
+                                            return h;
+                                        }
                                         clip: true
                                         color: Qt.rgba(15/255.0, 23/255.0, 42/255.0, 0.95)
                                         border.color: "#3b82f6"
@@ -2527,6 +2552,22 @@ ApplicationWindow {
                                                 text: {
                                                     var sec = previewCard.hoverPercent * (player.duration / 1000.0);
                                                     return formatTime(sec);
+                                                }
+                                            }
+
+                                            Text {
+                                                width: parent.width
+                                                horizontalAlignment: Text.AlignHCenter
+                                                elide: Text.ElideRight
+                                                color: "#38bdf8"
+                                                font.pixelSize: 10
+                                                font.bold: true
+                                                font.family: "Inter"
+                                                visible: mediaChapters && mediaChapters.length > 0
+                                                text: {
+                                                    if (!mediaChapters || mediaChapters.length === 0) return "";
+                                                    var sec = previewCard.hoverPercent * (player.duration / 1000.0);
+                                                    return getChapterAtTime(sec);
                                                 }
                                             }
                                             
@@ -3113,6 +3154,40 @@ ApplicationWindow {
                                         }
                                     }
 
+                                    // Chapters List Picker Button
+                                    Button {
+                                        id: chaptersControlsBtn
+                                        flat: true
+                                        implicitWidth: 44
+                                        implicitHeight: 44
+                                        padding: 0
+                                        leftPadding: 0
+                                        rightPadding: 0
+                                        topPadding: 0
+                                        bottomPadding: 0
+                                        visible: mediaChapters.length > 0
+                                        
+                                        background: Rectangle {
+                                            color: chaptersControlsBtn.pressed ? Qt.rgba(255, 255, 255, 0.1) : (chaptersControlsBtn.hovered ? Qt.rgba(255, 255, 255, 0.05) : "transparent")
+                                            radius: 18
+                                        }
+                                        
+                                        contentItem: Item {
+                                            anchors.fill: parent
+                                            
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "📖"
+                                                font.pixelSize: 18
+                                                color: chaptersControlsBtn.hovered ? "#60a5fa" : "#94a3b8"
+                                            }
+                                        }
+                                        
+                                        onClicked: {
+                                            chaptersPopupVisible = !chaptersPopupVisible
+                                        }
+                                    }
+
                                     // Hoverable Volume Control (Custom Speaker + Precise Slider margins)
                                     MouseArea {
                                         id: volumeHoverArea
@@ -3223,6 +3298,15 @@ ApplicationWindow {
                                                     anchors.fill: parent
                                                     anchors.leftMargin: 4
                                                     anchors.rightMargin: 4
+
+                                                    Timer {
+                                                        id: saveVolumeTimer
+                                                        interval: 500
+                                                        repeat: false
+                                                        onTriggered: {
+                                                            controller.saveVolume(volumeSlider.value)
+                                                        }
+                                                    }
                                                     implicitHeight: 24
                                                     leftPadding: 0
                                                     rightPadding: 0
@@ -3258,7 +3342,7 @@ ApplicationWindow {
                                                     }
                                                     
                                                     onValueChanged: {
-                                                        controller.saveVolume(value)
+                                                        saveVolumeTimer.restart()
                                                         if (value > 0 && isMuted) {
                                                             isMuted = false
                                                         }
@@ -3702,6 +3786,17 @@ ApplicationWindow {
         return hours * 3600 + minutes * 60 + seconds;
     }
 
+    function getChapterAtTime(seconds) {
+        if (!mediaChapters || mediaChapters.length === 0) return "";
+        var activeTitle = "";
+        for (var i = 0; i < mediaChapters.length; i++) {
+            if (seconds >= mediaChapters[i].time) {
+                activeTitle = mediaChapters[i].title;
+            }
+        }
+        return activeTitle;
+    }
+
     // Detects all subtitle options for the current track:
     // - External .srt / .vtt files beside the media (via C++ directory scan)
     // - Embedded subtitle tracks reported by Qt MediaPlayer
@@ -3812,6 +3907,8 @@ ApplicationWindow {
             activeSubtitleUrl = ""
             activeEmbeddedTrackIndex = -1
             player.activeSubtitleTrack = -1
+            mediaChapters = controller.getMediaChapters(track.url)
+            chaptersPopupVisible = false
 
             currentTrackIndex = index
 
@@ -4274,6 +4371,205 @@ ApplicationWindow {
                 Text {
                     anchors.centerIn: parent
                     text: availableSubtitles.length + " track" + (availableSubtitles.length !== 1 ? "s" : "") + " available"
+                    color: "#475569"
+                    font.pixelSize: 11
+                }
+            }
+        }
+    }
+
+    // ─── Chapters List Popup ──────────────────────────────────────────────────
+    Popup {
+        id: chaptersPopup
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(460, window.width - 48)
+        modal: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        visible: chaptersPopupVisible
+
+        onClosed: chaptersPopupVisible = false
+
+        // Dark dim behind popup
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(0, 0, 0, 0.55)
+        }
+
+        background: Rectangle {
+            color: "#0f172a"
+            radius: 16
+            border.color: "#334155"
+            border.width: 1
+
+            // Subtle top glow
+            Rectangle {
+                anchors.top: parent.top
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: parent.width * 0.5
+                height: 1
+                color: "#38bdf8"
+                opacity: 0.4
+                radius: 1
+            }
+        }
+
+        Column {
+            width: parent.width
+            spacing: 0
+
+            // Header
+            Item {
+                width: parent.width
+                height: 56
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.leftMargin: 20
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "📖  Chapters List"
+                    color: "white"
+                    font.pixelSize: 15
+                    font.bold: true
+                    font.letterSpacing: 0.3
+                }
+
+                // Close button
+                Button {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    implicitWidth: 32
+                    implicitHeight: 32
+                    flat: true
+                    padding: 0
+                    contentItem: Text {
+                        text: "✕"
+                        color: "#64748b"
+                        font.pixelSize: 13
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        color: parent.hovered ? "#1e293b" : "transparent"
+                        radius: 6
+                    }
+                    onClicked: chaptersPopup.close()
+                }
+
+                // Divider
+                Rectangle {
+                    anchors.bottom: parent.bottom
+                    width: parent.width
+                    height: 1
+                    color: "#1e293b"
+                }
+            }
+
+            // Chapters list
+            ListView {
+                id: chaptersList
+                width: parent.width
+                height: Math.min(contentHeight, 280)
+                clip: true
+                model: mediaChapters
+
+                delegate: Item {
+                    id: chapterDelegate
+                    width: chaptersList.width
+                    height: 50
+
+                    property bool isActive: {
+                        var posSec = player.position / 1000.0
+                        if (posSec < modelData.time) return false
+                        var nextIndex = index + 1
+                        if (nextIndex < mediaChapters.length) {
+                            return posSec < mediaChapters[nextIndex].time
+                        }
+                        return true
+                    }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: 4
+                        radius: 8
+                        color: chapterDelegate.isActive ? "#1e3a5f" : "transparent"
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onEntered: parent.color = chapterDelegate.isActive ? "#1e4a7f" : "#1e293b"
+                            onExited:  parent.color = chapterDelegate.isActive ? "#1e3a5f" : "transparent"
+
+                            onClicked: {
+                                player.position = modelData.time * 1000.0
+                                chaptersPopup.close()
+                                showMessage("Skipped to: " + modelData.title)
+                            }
+
+                            Row {
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.left: parent.left
+                                anchors.right: activeChapterIndicator.left
+                                anchors.leftMargin: 16
+                                anchors.rightMargin: 8
+                                spacing: 12
+
+                                Text {
+                                    text: "📌"
+                                    font.pixelSize: 14
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: modelData.title
+                                    color: "white"
+                                    font.pixelSize: 14
+                                    elide: Text.ElideRight
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: formatTime(modelData.time)
+                                    color: "#64748b"
+                                    font.pixelSize: 12
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            // Active checkmark
+                            Text {
+                                id: activeChapterIndicator
+                                anchors.right: parent.right
+                                anchors.rightMargin: 16
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: chapterDelegate.isActive
+                                text: "✓"
+                                color: "#38bdf8"
+                                font.pixelSize: 14
+                                font.bold: true
+                            }
+                        }
+                    }
+                }
+
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                }
+            }
+
+            // Footer hint
+            Item {
+                width: parent.width
+                height: 40
+
+                Rectangle {
+                    anchors.top: parent.top
+                    width: parent.width
+                    height: 1
+                    color: "#1e293b"
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: mediaChapters.length + " chapter" + (mediaChapters.length !== 1 ? "s" : "") + " detected"
                     color: "#475569"
                     font.pixelSize: 11
                 }

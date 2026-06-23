@@ -46,6 +46,7 @@ public:
     Q_INVOKABLE bool loadPlayFolderToggle() const;
     Q_INVOKABLE QVariantList findSubtitleFiles(const QString &mediaUrl);
     Q_INVOKABLE QString extractEmbeddedSubtitle(const QString &mediaUrl, int trackIndex);
+    Q_INVOKABLE QVariantList getMediaChapters(const QString &mediaUrl);
 
 signals:
     void videoSinkChanged();

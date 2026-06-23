@@ -7,6 +7,9 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <QDebug>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 
 PlayerController::PlayerController(QObject *parent)
     : QObject(parent)
@@ -397,4 +400,65 @@ QString PlayerController::extractEmbeddedSubtitle(const QString &mediaUrl, int t
 
     return "";
 }
+
+QVariantList PlayerController::getMediaChapters(const QString &mediaUrl)
+{
+    QVariantList result;
+    if (mediaUrl.isEmpty()) {
+        return result;
+    }
+
+    QUrl url(mediaUrl);
+    QString localInput = url.isLocalFile() ? url.toLocalFile() : mediaUrl;
+
+    if (!QFile::exists(localInput)) {
+        return result;
+    }
+
+    QProcess process;
+    QStringList arguments;
+    arguments << "-print_format" << "json"
+              << "-show_chapters"
+              << localInput;
+
+    process.start("ffprobe", arguments);
+    if (process.waitForFinished(3000)) { // 3 seconds timeout
+        if (process.exitCode() == 0) {
+            QByteArray output = process.readAllStandardOutput();
+            QJsonDocument doc = QJsonDocument::fromJson(output);
+            if (!doc.isNull() && doc.isObject()) {
+                QJsonObject rootObj = doc.object();
+                if (rootObj.contains("chapters") && rootObj["chapters"].isArray()) {
+                    QJsonArray chaptersArray = rootObj["chapters"].toArray();
+                    for (int i = 0; i < chaptersArray.size(); ++i) {
+                        QJsonObject chObj = chaptersArray[i].toObject();
+                        double startTime = 0.0;
+                        if (chObj.contains("start_time")) {
+                            startTime = chObj["start_time"].toString().toDouble();
+                        }
+                        
+                        QString title;
+                        if (chObj.contains("tags") && chObj["tags"].isObject()) {
+                            QJsonObject tagsObj = chObj["tags"].toObject();
+                            if (tagsObj.contains("title")) {
+                                title = tagsObj["title"].toString();
+                            }
+                        }
+                        
+                        if (title.isEmpty()) {
+                            title = tr("Chapter %1").arg(i + 1);
+                        }
+                        
+                        QVariantMap map;
+                        map["time"] = startTime;
+                        map["title"] = title;
+                        result.append(map);
+                    }
+                }
+            }
+        }
+    }
+    return result;
+}
+
 
