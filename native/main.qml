@@ -3219,16 +3219,15 @@ ApplicationWindow {
                     scale: selectVideoBtn.hovered ? 1.02 : 1.0
                     Behavior on scale { NumberAnimation { duration: 100 } }
                     background: Rectangle {
-                        color: selectVideoBtn.pressed ? "#0f172a" : (selectVideoBtn.hovered ? "#1e293b" : "transparent")
-                        radius: 8
-                        border.color: "#334155"
-                        border.width: 1
+                        color: selectVideoBtn.pressed ? "#1d4ed8" : (selectVideoBtn.hovered ? "#4a5568" : "transparent")
+                        radius: 12
                     }
                     contentItem: Text {
                         text: "🎥 Select Video (MP4/WebM)"
-                        color: "white"
+                        color: selectVideoBtn.hovered || selectVideoBtn.pressed ? "white" : "#cbd5e0"
                         font.pixelSize: 13
-                        leftPadding: 8
+                        font.bold: selectVideoBtn.hovered || selectVideoBtn.pressed
+                        leftPadding: 12
                         verticalAlignment: Text.AlignVCenter
                     }
                     onClicked: mediaFileDialog.open()
@@ -3243,16 +3242,15 @@ ApplicationWindow {
                     scale: selectPlaylistBtn.hovered ? 1.02 : 1.0
                     Behavior on scale { NumberAnimation { duration: 100 } }
                     background: Rectangle {
-                        color: selectPlaylistBtn.pressed ? "#0f172a" : (selectPlaylistBtn.hovered ? "#1e293b" : "transparent")
-                        radius: 8
-                        border.color: "#334155"
-                        border.width: 1
+                        color: selectPlaylistBtn.pressed ? "#1d4ed8" : (selectPlaylistBtn.hovered ? "#4a5568" : "transparent")
+                        radius: 12
                     }
                     contentItem: Text {
                         text: "📋 Select Playlist (.xspf)"
-                        color: "white"
+                        color: selectPlaylistBtn.hovered || selectPlaylistBtn.pressed ? "white" : "#cbd5e0"
                         font.pixelSize: 13
-                        leftPadding: 8
+                        font.bold: selectPlaylistBtn.hovered || selectPlaylistBtn.pressed
+                        leftPadding: 12
                         verticalAlignment: Text.AlignVCenter
                     }
                     onClicked: xspfFileDialog.open()
@@ -3267,16 +3265,15 @@ ApplicationWindow {
                     scale: selectLyricsBtn.hovered ? 1.02 : 1.0
                     Behavior on scale { NumberAnimation { duration: 100 } }
                     background: Rectangle {
-                        color: selectLyricsBtn.pressed ? "#0f172a" : (selectLyricsBtn.hovered ? "#1e293b" : "transparent")
-                        radius: 8
-                        border.color: "#334155"
-                        border.width: 1
+                        color: selectLyricsBtn.pressed ? "#1d4ed8" : (selectLyricsBtn.hovered ? "#4a5568" : "transparent")
+                        radius: 12
                     }
                     contentItem: Text {
                         text: "📄 Select Lyrics/Subs (.txt/.srt)"
-                        color: "white"
+                        color: selectLyricsBtn.hovered || selectLyricsBtn.pressed ? "white" : "#cbd5e0"
                         font.pixelSize: 13
-                        leftPadding: 8
+                        font.bold: selectLyricsBtn.hovered || selectLyricsBtn.pressed
+                        leftPadding: 12
                         verticalAlignment: Text.AlignVCenter
                     }
                     onClicked: lyricsFileDialog.open()
@@ -3291,15 +3288,17 @@ ApplicationWindow {
                 Layout.preferredHeight: 38
                 flat: true
                 padding: 0
+                scale: closeDrawerBtn.hovered ? 1.02 : 1.0
+                Behavior on scale { NumberAnimation { duration: 100 } }
                 background: Rectangle {
                     color: closeDrawerBtn.pressed ? "#7f1d1d" : (closeDrawerBtn.hovered ? "#991b1b" : "transparent")
-                    radius: 8
-                    border.color: "#ef4444"
+                    radius: 12
+                    border.color: closeDrawerBtn.hovered ? "#ef4444" : "#7f1d1d"
                     border.width: 1
                 }
                 contentItem: Text {
                     text: "Close Menu"
-                    color: "#f87171"
+                    color: closeDrawerBtn.hovered || closeDrawerBtn.pressed ? "white" : "#f87171"
                     font.bold: true
                     font.pixelSize: 13
                     horizontalAlignment: Text.AlignHCenter
@@ -3310,13 +3309,17 @@ ApplicationWindow {
         }
     }
 
-    // Overlay
+    // Overlay (anchored next to the leftPanel so the vertical sidebar stays bright and matches the drawer)
     Rectangle {
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.leftMargin: leftPanel.visible ? 155 : 0
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
         color: "#90000000"
         z: 999
         visible: sidebarOpen
-        
+
         MouseArea {
             anchors.fill: parent
             onClicked: sidebarOpen = false
