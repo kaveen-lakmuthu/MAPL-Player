@@ -44,6 +44,7 @@ public:
     Q_INVOKABLE QVariantList getFilesInFolder(const QString &fileUrl);
     Q_INVOKABLE void savePlayFolderToggle(bool enabled);
     Q_INVOKABLE bool loadPlayFolderToggle() const;
+    Q_INVOKABLE QVariantList findSubtitleFiles(const QString &mediaUrl);
 
 signals:
     void videoSinkChanged();

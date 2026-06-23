@@ -1,136 +1,107 @@
-# MAPL Player (Native C++ & Qt6 Version)
+# MAPL Player — Native C++ & Qt6
 
-MAPL Player is a high-performance, native C++ desktop media player built for **Fedora Linux (KDE)** and other modern Linux distributions using **Qt6 (Qt Quick / QML)**. It features dynamic background color extraction, cover-art snapshots, a custom subtitles customizer, and a built-in local speech-to-text subtitle generator powered by **OpenAI Whisper** via `whisper.cpp`.
+A high-performance, native desktop media player for **Fedora Linux / KDE Plasma 6**, built on **C++ and Qt6 (Qt Quick / QML)**. Plays virtually every major video and audio format with hardware acceleration, detects subtitles automatically, and generates them offline using a local AI model.
+
+---
+
+## Table of Contents
+
+1. [Features](#features)
+2. [System Architecture](#system-architecture)
+3. [Build & Installation](#build--installation)
+4. [System-Wide Installation (Plasma 6)](#system-wide-installation-plasma-6)
+5. [Supported Formats](#supported-formats)
+6. [Subtitle Support](#subtitle-support)
+7. [Hardware Acceleration](#hardware-acceleration)
+8. [AI Subtitle Generation (Whisper)](#ai-subtitle-generation-whisper)
+9. [Keyboard Shortcuts](#keyboard-shortcuts)
+10. [Configuration & Persistence](#configuration--persistence)
+11. [File Formats Reference](#file-formats-reference)
+12. [Developer Guide](#developer-guide)
+13. [Media Codecs Setup](#media-codecs-setup)
+
+---
+
+## Features
+
+| Feature | Details |
+|---|---|
+| **Format support** | MP4, MKV, AVI, MOV, WEBM, FLV, WMV, 3GP, MPEG, MPG + MP3, FLAC, WAV, OGG, M4A, AAC, OPUS, WMA, AIFF, WV, APE |
+| **Subtitle detection** | Auto-detects external `.srt`/`.vtt` files and embedded tracks; shows a picker when multiple are found |
+| **Offline AI subtitles** | Generates subtitles locally with `whisper.cpp` — no internet required after model download |
+| **Timeline previews** | Hardware-accelerated (VA-API/NVDEC) sprite-sheet previews with ~8s generation for a 2.5h film |
+| **Dynamic ambient UI** | Extracts dominant color from playing video and smoothly adapts the entire background |
+| **Collapsible sidebar** | Auto-hides when a video starts playing; toggle with `☰` or expand from inside the panel |
+| **Interactive transcript** | Click any subtitle line in the transcript panel to seek playback to that moment |
+| **Cover art capture** | Snapshot any video frame as the track's album art |
+| **XSPF playlists** | Load and queue full playlists via XSPF |
+| **Folder play mode** | Optionally auto-load all media files in a video/audio file's folder |
+| **VA-API hardware decoding** | Enabled by default for Intel/AMD GPU video decoding |
 
 ---
 
 ## System Architecture
 
-The native version of MAPL Player divides responsibilities between a C++ backend (for heavy computing, file I/O, networking, and performance-critical operations) and a fluid QML frontend (for user interface rendering and input handling).
-
-```mermaid
-graph TD
-    A[main.cpp Entrypoint] -->|Initializes & Sets Env| B[QApplication]
-    B -->|Loads Engine| C[QQmlApplicationEngine]
-    C -->|Instantiates| D[main.qml UI]
-    
-    subgraph C++ Core Components
-        E[PlayerController] <-->|Properties, Signals & Slots| D
-        F[SubtitleGenerator] <-->|Q_INVOKABLE Actions| D
-        G[ModelDownloader] <-->|QNetworkAccessManager| D
-        H[TranscriptionWorker] <-->|Background Thread| F
-    end
-
-    subgraph External Dependencies
-        I[Mesa VA-API / FFmpeg] <-->|QVideoSink & QVideoFrame| E
-        J[whisper.cpp Library] <-->|PCM Audio Processing| H
-        K[Hugging Face Models] <-->|Model Weights Download| G
-    end
+```
+main.cpp
+  └── QQmlApplicationEngine
+        └── main.qml  (UI)
+              ├── PlayerController (C++)  — settings, file ops, frame color extraction,
+              │                             timeline preview generation (ffmpeg), subtitle file scan
+              ├── SubtitleGenerator (C++) — whisper.cpp offline transcription
+              │     └── TranscriptionWorker (QThread)
+              ├── ModelDownloader (C++)   — Whisper model download via QNetworkAccessManager
+              └── Qt MediaPlayer          — playback, embedded track detection
 ```
 
----
+### Component Responsibilities
 
-## Codebase & Component Reference
+#### `main.cpp`
+- Sets `QT_FFMPEG_DECODING_HW_DEVICE_TYPES=vaapi` and `QT_FFMPEG_HW_ALLOW_PROFILE_MISMATCH=1` for automatic hardware decoding
+- Enables `QML_XHR_ALLOW_FILE_READ` for local XSPF/subtitle file reading
+- Initializes and loads the QML engine
 
-### 1. `main.cpp`
-The entrypoint of the application. It configures the runtime environment and initializes the Qt Quick engine:
-*   **VA-API Pre-configuration**: Automatically executes `qputenv("QT_FFMPEG_DECODING_HW_DEVICE_TYPES", "vaapi")` to force the Qt Multimedia FFmpeg backend to utilize hardware-accelerated video decoding (such as Intel/AMD VA-API) by default.
-*   **Local File Access Support**: Enables `QML_XHR_ALLOW_FILE_READ` to allow QML's `XMLHttpRequest` to parse local XSPF playlists.
-*   **Startup Engine Loading**: Connects signals to verify successful loading of `main.qml`.
+#### `PlayerController`
+- **`videoSink`** — hooks into `VideoOutput` to receive frames for color extraction
+- **`handleVideoFrame()`** — samples pixel colors at 4fps to emit `backgroundColorChanged(hexColor)`
+- **`generateTimelinePreviews(url, durationSec)`** — spawns a background `ffmpeg` process with `-hwaccel auto -discard nokey -skip_frame nokey` to generate a 10×10 sprite sheet at `~/.cache/mapl-player/previews/`
+- **`findSubtitleFiles(mediaUrl)`** — scans the media file's directory for all `<basename>*.srt` and `<basename>*.vtt` files, returning `{ label, url }` maps
+- **`getFilesInFolder(fileUrl)`** — enumerates all media files in a folder for folder-play mode
+- **`captureThumbnail()`** / **`getThumbnail()`** — frame-snapshot cover art via `QSettings`
+- **`saveVolume()`** / **`loadVolume()`** / **`saveLoop()`** / **`loadLoop()`** — persistent settings
 
-### 2. `PlayerController`
-Exposed as a QML element (`PlayerController`), this class handles persistent settings, file operations, and active frame analysis:
-*   **Properties**:
-    *   `videoSink` ([QVideoSink](file:///home/kaveen/projects/MAPL-Player/native/PlayerController.h#L17)): Hooked into QML's `VideoOutput` to receive video frames.
-    *   `currentTrackTitle` ([QString](file:///home/kaveen/projects/MAPL-Player/native/PlayerController.h#L18)): Title of the active media file.
-*   **Dynamic Background Extraction**:
-    *   Intercepts frames inside `handleVideoFrame()`.
-    *   Samples pixel colors at regular intervals (50ms throttle) to calculate the average RGB values.
-    *   Emits `backgroundColorChanged(hexColor)` to smoothly transition the QML player's ambient glassmorphic background colors.
-*   **Persistence & I/O Helpers**:
-    *   `saveVolume()` / `loadVolume()` and `saveLoop()` / `loadLoop()` using `QSettings`.
-    *   `captureThumbnail(trackUrl)`: Extracts the current video frame from `QVideoSink` and saves it locally as a PNG thumbnail linked to the media track.
-    *   `writeTextToFile(filePath, content)`: Exports transcripts/subtitles to a `.txt` file.
+#### `SubtitleGenerator` & `TranscriptionWorker`
+- Extracts audio to a 16kHz mono PCM WAV via `ffmpeg`
+- Runs `whisper.cpp` inference on a background `QThread`
+- Reports progress via signal; returns `subtitlesReady(chunks)` on completion
 
-### 3. `SubtitleGenerator` & `TranscriptionWorker`
-Manages offline speech-to-text generation:
-*   **Background Threading**: Spawns a `TranscriptionWorker` inside a `QThread` to prevent blocking the QML GUI thread during CPU-intensive transcriptions.
-*   **Audio Extraction**: Uses `QProcess` to run `ffmpeg` locally, demuxing the audio stream and converting it to the required format (16kHz, single-channel, 16-bit PCM WAV).
-*   **Whisper Inference**: Connects to the compiled C API of `whisper.cpp` to feed the raw PCM samples into the selected model. It reports transcription progress via a static progress callback and emits `subtitlesReady()` with a detailed list of text segments containing start and end timestamps.
-
-### 4. `ModelDownloader`
-Handles thread-safe downloading of OpenAI Whisper models:
-*   **Functions**:
-    *   `checkModelExists(modelName)`: Checks local cache folder (`~/.cache/mapl-player/`).
-    *   `startDownload(modelName)`: Pulls the `.bin` weights model from Hugging Face Repository.
-    *   `cancelDownload()`: Aborts ongoing network requests safely.
-*   **Network Engine**: Implements `QNetworkAccessManager` with progress tracking to display download percentages directly in the QML UI.
-
-### 5. `main.qml`
-The complete GUI declaration:
-*   **Layout Architecture**: A horizontal `RowLayout` splitting the UI into a **Left Sidebar panel** and a **Main Content Wrapper**.
-*   **Views Container**: Uses an `Item` displaying views based on the `currentView` property:
-    *   `audio`: Immersive view with blurred album art backgrounds, a live subtitle card, and an "Up Next" queue panel.
-    *   `video`: Inline native video player displaying video output and floating subtitle overlays.
-    *   `lyrics`: Dedicated subtitles customizer and transcript panel.
-    *   `playlist`: Filterable media queue list.
-*   **Controls Panel**: Standard bottom controls containing responsive timelines, skipping controls, volume sliders, looping toggles, and status/error indicators.
+#### `ModelDownloader`
+- Downloads Whisper `.bin` model weights from Hugging Face
+- Streams download with progress reporting; saves to `~/.cache/mapl-player/`
 
 ---
 
-## Speech-to-Text (Whisper) Technical Pipeline
+## Build & Installation
 
-The offline translation and transcription engine operates through a structured process pipeline:
+### Dependencies (Fedora Linux)
 
-```mermaid
-flowchart LR
-    A[Input Video/Audio] -->|QProcess FFmpeg| B[Demuxed 16kHz PCM WAV]
-    B -->|Thread-Safe QThread| C[whisper_context]
-    C -->|whisper_full_params| D[Local Inference]
-    D -->|Static Callback| E[Progress Updates]
-    D -->|subtitlesReady Signal| F[QML Subtitle List]
-```
-
-1.  **Audio Extraction & Downsampling**:
-    When `generateSubtitles()` is called, the C++ engine spawns an asynchronous `ffmpeg` helper process:
-    ```bash
-    ffmpeg -y -i <input_media_file> -ar 16000 -ac 1 -c:a pcm_s16le <output_temp_file>.wav
-    ```
-    This downsamples audio to a strict **16kHz, single-channel (mono), 16-bit PCM WAV** structure expected by the Whisper decoder.
-2.  **Thread Isolation**:
-    To prevent the UI from freezing during heavy processing, the transcription executes entirely inside the `TranscriptionWorker` run-loop which is mapped to a dedicated worker `QThread`.
-3.  **Local Model Interfacing**:
-    The backend uses the native C API of `whisper.cpp` (`whisper_init_from_file_with_params` and `whisper_full`) to load model files (e.g., `ggml-base.bin`) and run the decoder.
-4.  **Translation vs. Transcription**:
-    If the `translate` argument is `true`, the engine activates the English translation task inside Whisper by setting `params.task = WHISPER_TASK_TRANSLATION`. This transcribes foreign-language audio directly into English.
-5.  **Interactive Segment Mapping**:
-    The finalized subtitle chunks are formatted as a `QVariantList` containing arrays of objects:
-    ```json
-    [
-      { "text": "Segment text...", "startMs": 12000, "endMs": 15400 }
-    ]
-    ```
-    When loaded in QML, clicking any segment in the interactive transcript side panel reads the `startMs` property and invokes `mediaPlayer.setPosition(startMs)` to jump playback to that exact word.
-
----
-
-## Build & Installation Guide
-
-### 1. Install System Dependencies
-First, install the compiler, build tools, Qt6 SDK, and FFmpeg development files.
-
-**On Fedora Linux:**
 ```bash
-sudo dnf install cmake gcc-c++ qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtmultimedia-devel ffmpeg ffmpeg-devel libva-utils
+sudo dnf install cmake gcc-c++ \
+    qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtmultimedia-devel \
+    ffmpeg ffmpeg-devel libva-utils
 ```
 
-**On Ubuntu / Debian:**
+### Dependencies (Ubuntu / Debian)
+
 ```bash
-sudo apt install cmake g++ qt6-base-dev qt6-declarative-dev qt6-multimedia-dev libqt6multimedia6 ffmpeg libva-dev vainfo
+sudo apt install cmake g++ \
+    qt6-base-dev qt6-declarative-dev qt6-multimedia-dev \
+    libqt6multimedia6 ffmpeg libva-dev vainfo
 ```
 
-### 2. Compile the Project
-Configure and compile the native binary (CMake will automatically retrieve `whisper.cpp` v1.8.6 as a dependency):
+### Compile
+
+CMake automatically fetches `whisper.cpp` v1.8.6 as a dependency at configure time.
 
 ```bash
 cd native
@@ -139,87 +110,229 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 ```
 
-This creates the native executable: `./mapl-player`.
+The executable is created at `native/build/mapl-player`.
 
----
+### Run directly
 
-## Running the Application
-
-Launch the compiled executable directly from the build folder:
 ```bash
 ./mapl-player
 ```
 
-### Initial Model Setup (For Subtitles)
-The first time you generate subtitles, the app prompts you to download a Whisper model file:
-*   **Tiny Model (~77 MB):** Fast, low CPU/RAM footprint.
-*   **Base Model (~140 MB):** Higher accuracy, better handling of noise and accents.
+---
 
-Models are saved to `~/.cache/mapl-player/`. Once downloaded, you can disable internet access; subtitle generation runs 100% locally and offline.
+## System-Wide Installation (Plasma 6)
+
+Run the install script from the **project root**:
+
+```bash
+./install.sh
+```
+
+This will:
+1. Copy `native/build/mapl-player` → `~/.local/bin/mapl-player`
+2. Copy `public/mapl-player-icon.png` → `~/.local/share/icons/hicolor/256x256/apps/`
+3. Install `mapl-player.desktop` → `~/.local/share/applications/`
+4. Rebuild the XDG desktop database (`update-desktop-database`)
+5. Rebuild the KDE service cache (`kbuildsycoca6`)
+6. Register MAPL as the default handler for common video/audio MIME types
+
+**No `sudo` required.** Everything installs to your user's home directory.
+
+After installing, set MAPL as your default media player:
+> **System Settings → Applications → Default Applications → Video Player / Music Player**
+
+Or right-click any video/audio file in Dolphin → **Open With → Other Application** → select MAPL Player → tick **Remember application association**.
 
 ---
 
-## Hardware Video Acceleration (GPU decoding)
+## Supported Formats
 
-To reduce CPU usage and utilize your GPU for video decoding (e.g. Intel/AMD Radeon):
+The Qt6 Multimedia FFmpeg backend decodes all formats that system FFmpeg supports. The file picker exposes three filter groups:
 
-1.  **Verify VA-API status on your machine**:
-    Run `vainfo` in your terminal. You should see `va_openDriver() returns 0` and supported codecs listed (e.g., `VAProfileH264High : VAEntrypointVLD`).
-    *   On Fedora, ensure you have enabled the RPM Fusion repositories and installed `mesa-va-drivers-freeworld` to get patent-restricted H.264/H.265 GPU decoding.
-2.  **Display Protocol Issues**:
-    The application defaults to native Wayland windowing. In some desktop configurations, FFmpeg's VA-API backend struggles with Wayland display context initialization. If you see VA-API initialization errors, force the player to run via **XWayland** by setting the QPA platform flag:
-    ```bash
-    QT_QPA_PLATFORM=xcb ./mapl-player
-    ```
+| Group | Formats |
+|---|---|
+| **Video** | `.mp4` `.mkv` `.avi` `.mov` `.webm` `.flv` `.m4v` `.ts` `.ogv` `.wmv` `.3gp` `.mpg` `.mpeg` |
+| **Audio** | `.mp3` `.flac` `.wav` `.ogg` `.m4a` `.aac` `.opus` `.wma` `.aiff` `.wv` `.ape` |
+| **All Media** | All of the above combined |
 
----
-
-## Media Codecs & Persistence
-
-### 1. Codecs Setup
-Qt6's Multimedia backend utilizes system GStreamer or FFmpeg plugins to play tracks. If you cannot play standard formats like `.mp4` or `.mp3` on a fresh Fedora/Ubuntu installation, install the media codecs:
-
-*   **Fedora Linux (RPM Fusion enabled)**:
-    ```bash
-    sudo dnf swap mesa-va-drivers mesa-va-drivers-freeworld
-    sudo dnf groupupdate multimedia --setop="install_weak_deps=False" --exclude=PackageKit-gstreamer-plugin
-    sudo dnf install gstreamer1-plugins-ugly gstreamer1-libav
-    ```
-*   **Ubuntu / Debian**:
-    ```bash
-    sudo apt install ubuntu-restricted-extras gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
-    ```
-
-### 2. Configuration Storage
-Application configurations (including volume, loop settings, loaded playlists, and custom thumbnails) are handled via `QSettings`. On Linux, this is persisted to:
-`~/.config/MAPL/MAPLPlayerNative.conf`
+> **Note:** Playback of H.264/H.265/AAC inside MKV or MP4 containers may require RPM Fusion `mesa-va-drivers-freeworld` on Fedora. See [Media Codecs Setup](#media-codecs-setup).
 
 ---
 
-## File Templates & Formats
+## Subtitle Support
 
-### 1. XSPF Playlist Template (`.xspf`)
-You can load playlist queues using XML-based XML Shareable Playlist Format (XSPF) files:
+### Automatic Detection
+
+When a media file is loaded, MAPL automatically:
+1. Scans the media file's directory for external subtitle files matching `<filename>*.srt` and `<filename>*.vtt`
+2. Queries Qt MediaPlayer for any embedded subtitle tracks inside the container (MKV, MP4, etc.)
+
+**If exactly one external file is found** and no embedded tracks exist, it is loaded silently.
+
+**If multiple subtitle options are found** (e.g. `movie.en.srt` + `movie.fr.srt`, or embedded tracks), a **subtitle picker popup** appears automatically.
+
+### Subtitle Picker
+
+The picker lists:
+- **External files** (loaded into MAPL's custom overlay — supports transcript panel, search, timing shift)
+- **Embedded tracks** (activated via Qt's native track API — rendered directly onto the video output)
+
+You can reopen the picker at any time via the subtitle controls.
+
+### Supported Subtitle Formats
+
+| Format | Auto-detect | Manual load | Notes |
+|---|---|---|---|
+| `.srt` (SubRip) | Yes | Yes | Full support including HTML tag stripping |
+| `.vtt` (WebVTT) | Yes | Yes | WEBVTT/NOTE/STYLE headers stripped automatically |
+| Embedded MKV/MP4 tracks | Yes | — | Native Qt rendering |
+
+### Subtitle Naming Convention for Auto-Detection
+
+Place subtitle files in the same folder as the video, using the same base filename:
+
+```
+/Videos/
+  movie.mp4
+  movie.srt          → label: "Default"
+  movie.en.srt       → label: "en"
+  movie.fr.srt       → label: "fr"
+  movie.Japanese.vtt → label: "Japanese"
+```
+
+### Manual Subtitle Load
+
+Use the subtitle button in the controls panel, or the file picker (`Subtitles & Lyrics` filter accepts `.srt`, `.vtt`, `.txt`).
+
+### Subtitle Shift
+
+If subtitle timing is off, use the shift controls in the Lyrics & Subtitles view (±0.5s / ±1s / custom). Export the corrected file as `.srt`, `.vtt`, or `.txt`.
+
+---
+
+## Hardware Acceleration
+
+MAPL enables VA-API hardware video decoding by default via environment variables set in `main.cpp`:
+
+```cpp
+qputenv("QT_FFMPEG_DECODING_HW_DEVICE_TYPES", "vaapi");
+qputenv("QT_FFMPEG_HW_ALLOW_PROFILE_MISMATCH", "1");
+```
+
+### Verify VA-API
+
+```bash
+vainfo
+```
+
+You should see `va_openDriver() returns 0` and a list of supported profiles (e.g. `VAProfileH264High : VAEntrypointVLD`).
+
+On Fedora, H.264/H.265 GPU decoding requires RPM Fusion:
+
+```bash
+sudo dnf swap mesa-va-drivers mesa-va-drivers-freeworld
+```
+
+### Wayland / XWayland
+
+MAPL runs natively on Wayland. If VA-API fails to initialize (common with some NVIDIA setups), force XWayland:
+
+```bash
+QT_QPA_PLATFORM=xcb ./mapl-player
+```
+
+---
+
+## AI Subtitle Generation (Whisper)
+
+MAPL can generate subtitles for any video or audio file entirely offline using a bundled [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (OpenAI Whisper) implementation.
+
+### Pipeline
+
+```
+Input file
+  → ffmpeg: extract audio → 16kHz mono 16-bit PCM WAV
+  → TranscriptionWorker (QThread): whisper_full() inference
+  → subtitlesReady signal → QML subtitle chunks
+```
+
+### First-Time Model Setup
+
+On first use, MAPL downloads a Whisper model:
+
+| Model | Size | Speed | Accuracy |
+|---|---|---|---|
+| **Tiny** | ~77 MB | Fastest | Good for clean speech |
+| **Base** | ~140 MB | Moderate | Better with noise/accents |
+
+Models are saved to `~/.cache/mapl-player/` and reused on subsequent runs. No internet needed after download.
+
+### Translation
+
+Enable **Translate to English** in the subtitle generator panel to transcribe any foreign-language audio directly into English text.
+
+---
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| `Space` | Play / Pause |
+| `←` / `→` | Seek −5s / +5s |
+| `F` or `Double-click` (video) | Toggle fullscreen |
+| `M` | Toggle mute |
+| `N` | Next track |
+| `P` | Previous track |
+| `Escape` | Exit fullscreen |
+
+---
+
+## Configuration & Persistence
+
+All settings are stored via `QSettings` at:
+
+```
+~/.config/MAPL/MAPLPlayerNative.conf
+```
+
+Stored values include: volume, loop toggle, play-folder toggle, thumbnails (base64 PNG), and per-track settings.
+
+Timeline preview sprite sheets are cached at:
+
+```
+~/.cache/mapl-player/previews/<md5-hash>.jpg
+```
+
+Whisper model files are cached at:
+
+```
+~/.cache/mapl-player/<model-name>.bin
+```
+
+---
+
+## File Formats Reference
+
+### XSPF Playlist (`.xspf`)
+
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <playlist version="1" xmlns="http://xspf.org/ns/0/">
   <trackList>
     <track>
       <title>Example Video</title>
-      <creator>Artist Name</creator>
-      <location>file:///home/user/Videos/video.mp4</location>
+      <location>file:///home/user/Videos/movie.mkv</location>
     </track>
     <track>
       <title>Example Song</title>
-      <creator>Singer</creator>
-      <location>file:///home/user/Music/song.mp3</location>
+      <location>file:///home/user/Music/song.flac</location>
     </track>
   </trackList>
 </playlist>
 ```
 
-### 2. SubRip Subtitles Template (`.srt`)
-To load local pre-existing subtitles, use standard SubRip formatting:
+### SubRip Subtitles (`.srt`)
+
 ```
 1
 00:00:10,200 --> 00:00:13,500
@@ -227,55 +340,81 @@ Welcome to MAPL Player!
 
 2
 00:00:14,000 --> 00:00:18,200
-This is a standard synced subtitle line.
+This is a synced subtitle line.
+```
+
+### WebVTT Subtitles (`.vtt`)
+
+```
+WEBVTT
+
+00:00:10.200 --> 00:00:13.500
+Welcome to MAPL Player!
+
+00:00:14.000 --> 00:00:18.200
+This is a synced subtitle line.
 ```
 
 ---
 
-## Developer & Extensibility Guide
+## Developer Guide
 
-### 1. Registering New C++ Classes with QML
-MAPL Player uses Qt6's automated QML registration macro. To expose a new C++ class to QML:
-1.  Add `#include <QtQml/QQmlEngine>` in the header.
-2.  Add the `QML_ELEMENT` macro inside the class definition:
+### Registering a New C++ Class with QML
+
+1. Add `QML_ELEMENT` to your class inside the `MAPLPlayerNative` CMake module:
     ```cpp
-    class MyCustomClass : public QObject {
+    #include <QtQml/QQmlEngine>
+    class MyClass : public QObject {
         Q_OBJECT
         QML_ELEMENT
     public:
-        ...
+        Q_INVOKABLE void doSomething(const QString &param);
+    signals:
+        void somethingDone(const QString &result);
     };
     ```
-3.  Rebuild with CMake. In `main.qml`, import and instantiate the class:
+2. Rebuild. In `main.qml`:
     ```qml
     import MAPLPlayerNative
-    
-    MyCustomClass {
-        id: customEngine
+
+    MyClass {
+        id: myClass
+        onSomethingDone: (result) => console.log(result)
     }
     ```
 
-### 2. Adding Properties, Signals, & Invokables
-To communicate between QML and C++:
-*   **Properties**: Declare them with the `Q_PROPERTY` macro (with READ, WRITE, and NOTIFY) to bind UI text or states directly.
-*   **Signals**: Define signals in the header under `signals:`. Connecting a QML handler to a C++ signal is as simple as:
-    ```qml
-    Connections {
-        target: playerController
-        function onBackgroundColorChanged(hexColor) { ... }
-    }
-    ```
-*   **Invokables**: Add the `Q_INVOKABLE` prefix to a public class function to expose it directly to QML JavaScript handlers:
-    ```cpp
-    Q_INVOKABLE void performCustomAction(const QString &param);
-    ```
+### QML ↔ C++ Communication Patterns
+
+| Pattern | How |
+|---|---|
+| C++ → QML (push) | `emit mySignal(value)` in C++; `onMySignal: ...` in QML |
+| QML → C++ (call) | `Q_INVOKABLE` method; called as `myObject.method(args)` from QML JS |
+| Bidirectional binding | `Q_PROPERTY(T name READ get WRITE set NOTIFY changed)` |
 
 ---
 
-## Global Shortcuts
+## Media Codecs Setup
 
-*   **Space**: Play / Pause
-*   **Left Arrow / Right Arrow**: Seek backward / forward 5 seconds
-*   **F / Double Click (Video)**: Toggle Fullscreen
-*   **M**: Toggle Mute
-*   **Escape**: Exit Fullscreen
+### Fedora (RPM Fusion)
+
+Enable RPM Fusion first ([instructions](https://rpmfusion.org/Configuration)), then:
+
+```bash
+# H.264/H.265 GPU decoding support
+sudo dnf swap mesa-va-drivers mesa-va-drivers-freeworld
+
+# Full codec pack
+sudo dnf groupupdate multimedia \
+    --setop="install_weak_deps=False" \
+    --exclude=PackageKit-gstreamer-plugin
+sudo dnf install gstreamer1-plugins-ugly gstreamer1-libav
+```
+
+### Ubuntu / Debian
+
+```bash
+sudo apt install ubuntu-restricted-extras \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly \
+    gstreamer1.0-libav
+```

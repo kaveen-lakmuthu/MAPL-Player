@@ -1,5 +1,7 @@
 #include <QApplication>
 #include <QQmlApplicationEngine>
+#include <QUrl>
+#include <QFileInfo>
 
 int main(int argc, char *argv[]) {
     // ── Suppress VA-API hardware acceleration noise ────────────────────────
@@ -25,7 +27,35 @@ int main(int argc, char *argv[]) {
     app.setOrganizationDomain("mapl.io");
     app.setApplicationName("MAPLPlayerNative");
 
+    // ── Parse startup file argument ────────────────────────────────────────
+    // Dolphin / xdg-open passes the opened file as argv[1] (the %U token in
+    // the .desktop Exec line). It may arrive as a file:// URL or a plain path.
+    QString initialFileUrl;
+    for (int i = 1; i < argc; ++i) {
+        QString arg = QString::fromLocal8Bit(argv[i]);
+        if (arg.startsWith('-'))
+            continue;  // skip any Qt or application flags
+
+        QUrl url(arg);
+        if (url.isLocalFile()) {
+            // Already a well-formed file:// URL (Dolphin passes these)
+            initialFileUrl = url.toString();
+        } else {
+            // Treat as a plain filesystem path (e.g. /home/user/movie.mkv)
+            QFileInfo fi(arg);
+            if (fi.exists())
+                initialFileUrl = QUrl::fromLocalFile(fi.absoluteFilePath()).toString();
+        }
+        if (!initialFileUrl.isEmpty())
+            break;
+    }
+
     QQmlApplicationEngine engine;
+
+    // Pass the startup file to the root QML object before the component is
+    // instantiated, so it is available immediately in Component.onCompleted.
+    if (!initialFileUrl.isEmpty())
+        engine.setInitialProperties({{"initialFileUrl", initialFileUrl}});
 
     // Qt 6 QML module resource loading URL
     const QUrl url(QStringLiteral("qrc:/MAPLPlayerNative/main.qml"));

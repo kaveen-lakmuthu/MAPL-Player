@@ -295,3 +295,47 @@ bool PlayerController::loadPlayFolderToggle() const
     QSettings settings("MAPL", "MAPLPlayerNative");
     return settings.value("playFolderToggle", false).toBool();
 }
+
+QVariantList PlayerController::findSubtitleFiles(const QString &mediaUrl)
+{
+    QVariantList result;
+    QUrl url(mediaUrl);
+    if (!url.isLocalFile())
+        return result;
+
+    QString localPath = url.toLocalFile();
+    QFileInfo fileInfo(localPath);
+    // completeBaseName strips only the last extension: "movie.en.mp4" -> "movie.en"
+    // But we want the real base without any language suffix, so use baseName of the stem
+    // Strategy: strip last extension, then use that as the glob prefix
+    QString stem = fileInfo.completeBaseName(); // "movie" from "movie.mp4", "movie.en" from "movie.en.mp4"
+    // For most cases the stem is already right (e.g. "Ben 10 Alien Swarm 2009")
+    QDir dir = fileInfo.dir();
+
+    QStringList filters;
+    filters << stem + "*.srt" << stem + "*.vtt";
+    dir.setNameFilters(filters);
+    dir.setFilter(QDir::Files | QDir::NoSymLinks);
+    dir.setSorting(QDir::Name);
+
+    QFileInfoList list = dir.entryInfoList();
+    for (const QFileInfo &info : list) {
+        QVariantMap map;
+        map["url"] = QUrl::fromLocalFile(info.absoluteFilePath()).toString();
+
+        // Extract the language label: strip the stem prefix and the file extension
+        // e.g. stem="movie", file="movie.en.srt" -> langPart=".en" -> label="en"
+        // e.g. stem="movie", file="movie.srt"    -> langPart=""    -> label="Default"
+        QString fileStem = info.completeBaseName(); // "movie.en" or "movie"
+        QString langPart;
+        if (fileStem.length() > stem.length()) {
+            langPart = fileStem.mid(stem.length()); // ".en"
+            if (langPart.startsWith('.'))
+                langPart = langPart.mid(1);          // "en"
+        }
+        map["label"] = langPart.isEmpty() ? tr("Default") : langPart;
+        result.append(map);
+    }
+
+    return result;
+}

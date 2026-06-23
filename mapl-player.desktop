@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=MAPL Player
+GenericName=Media Player
+Comment=Modern Audio and Video Player with AI subtitle generation
+Exec=/home/kaveen/.local/bin/mapl-player %U
+Icon=mapl-player
+Terminal=false
+Type=Application
+StartupNotify=true
+Categories=AudioVideo;Video;Audio;Player;Qt;
+
+MimeType=video/mp4;video/x-matroska;video/x-msvideo;video/quicktime;video/webm;video/x-flv;video/MP2T;video/ogg;video/x-ms-wmv;video/3gpp;video/mpeg;audio/mpeg;audio/flac;audio/ogg;audio/x-wav;audio/mp4;audio/aac;audio/opus;audio/x-ms-wma;audio/x-aiff;audio/wavpack;audio/x-ape;

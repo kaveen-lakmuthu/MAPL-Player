@@ -1,51 +1,77 @@
-# MAPL Player (Mp4 Audio PLayback)
+# MAPL Player
 
-MAPL Player is a clean, feature-rich desktop media player designed for playing MP4/WebM videos as audio-focused media tracks or native videos. It includes dynamic background color matching, custom cover-art capture, XSPF playlist parsing, and integrated subtitles.
+**MAPL Player** is a modern, native desktop media player for Linux, built on **C++ and Qt6/QML**. It plays virtually every video and audio format, generates subtitles offline using a local AI model, and ships with a premium dark UI with hardware-accelerated timeline previews, a collapsible sidebar, and intelligent subtitle detection.
 
-This repository hosts two distinct implementations:
-1.  **[Native C++ & Qt6 Version (Current Production)](file:///home/kaveen/projects/MAPL-Player/native/README.md):** A high-performance version built directly on the C++ Qt Quick/QML framework, utilizing a local OpenAI Whisper model for offline speech-to-text subtitle generation and direct GPU decoding.
-2.  **[Electron Version (Legacy Web Prototype)](file:///home/kaveen/projects/MAPL-Player/README.md):** An Electron-based desktop prototype written in HTML5, Vanilla JavaScript, and Tailwind CSS.
+> **Alpha testing is underway.** Use `install.sh` to install system-wide on Fedora/Plasma 6.
 
 ---
 
-## Native C++ & Qt6 Version (Recommended)
+## Repository Structure
 
-The native desktop implementation is designed for lightweight footprint (~20MB RAM) and hardware-accelerated playback.
-
-### Key Features
-*   **Offline speech-to-text transcription**: Generates subtitles locally in seconds using a bundled C++ implementation of OpenAI Whisper (`whisper.cpp`).
-*   **Low memory footprint**: Written in native C++ using Qt Quick (QML) scene graphs.
-*   **Hardware Acceleration (VA-API)**: Compiles with default support for GPU decoding on Linux.
-*   **Interactive transcript syncing**: Click any transcribed segment to instantly seek playback to that word.
-
-To build and run the native version, see the **[Native C++ Documentation](file:///home/kaveen/projects/MAPL-Player/native/README.md)**.
+| Directory | Description |
+|---|---|
+| `native/` | **Production** — native C++ & Qt6 application (recommended) |
+| `electron/` | Legacy — original Electron/HTML5 prototype (unmaintained) |
+| `public/` | App icon (`mapl-player-icon.png`) |
+| `install.sh` | One-step install script for Fedora/KDE Plasma 6 |
+| `mapl-player.desktop` | XDG desktop entry for system integration |
 
 ---
 
-## Electron & Web Version (Legacy Prototype)
+## Quick Start (Native Version)
 
-The original HTML5-based Electron version runs a web-tech-based renderer.
+### 1. Install dependencies (Fedora)
 
-### Key Features
-*   **Dynamic Ambient Color Matching**: Draws active video frames to an offscreen canvas to extract pixel averages on the fly.
-*   **Custom Cover Art Capture**: Freeze a frame in video mode and capture it to serve as the track's album cover art in audio mode.
-*   **Drag-and-Drop Loader**: Load single media tracks, XSPF playlists, or subtitle files by dropping them onto the window.
+```bash
+sudo dnf install cmake gcc-c++ \
+    qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtmultimedia-devel \
+    ffmpeg ffmpeg-devel libva-utils
+```
 
-### Setup and Launch
-Make sure you have Node.js and npm installed.
+### 2. Build
 
-1.  Install dependencies:
-    ```bash
-    npm install
-    ```
-2.  Launch the application:
-    ```bash
-    npm start
-    ```
+```bash
+cd native
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+```
 
-For detailed configurations, see the code in the root directory.
+### 3. Run directly
+
+```bash
+./mapl-player
+```
+
+### 4. Install system-wide (KDE Plasma 6 / Fedora)
+
+Run from the project root:
+
+```bash
+./install.sh
+```
+
+This installs the binary, icon, and `.desktop` entry to `~/.local/` — no `sudo` needed. Rebuilds the KDE service cache automatically. Then set MAPL as your default player in:
+
+> **System Settings → Applications → Default Applications → Video Player / Music Player**
+
+See [`native/README.md`](native/README.md) for the full build guide, hardware acceleration setup, and developer reference.
+
+---
+
+## Key Features
+
+- **Broad format support** — MP4, MKV, AVI, MOV, WEBM, FLV, WMV, 3GP, MPEG + MP3, FLAC, WAV, OGG, M4A, AAC, OPUS, WMA, AIFF, and more
+- **Smart subtitle detection** — auto-detects external `.srt`/`.vtt` files and embedded tracks with a language picker
+- **Offline AI subtitle generation** — powered by `whisper.cpp` (OpenAI Whisper) running locally, no internet needed
+- **Hardware-accelerated timeline previews** — VA-API/NVDEC-accelerated sprite sheet generation
+- **Dynamic ambient UI** — extracts dominant color from the playing video and adapts the whole background
+- **Interactive transcript panel** — click any subtitle line to seek to that moment
+- **XSPF playlist support** — load and queue full playlists
+- **Collapsible sidebar** — auto-hides during video playback for maximum screen real estate
 
 ---
 
 ## License
-This project is licensed under the MIT License. See the `LICENSE` file for details.
+
+MIT — see [`LICENSE`](LICENSE).

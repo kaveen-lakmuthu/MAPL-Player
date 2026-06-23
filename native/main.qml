@@ -65,6 +65,22 @@ ApplicationWindow {
     property string currentTimelinePreviewSheet: ""
     property bool controlsVisible: true
 
+    // Subtitle track selection state
+    property var availableSubtitles: []      // [{label, url, isEmbedded, embeddedIndex}]
+    property bool subtitlePickerVisible: false
+    property bool subtitleDetectionDone: false  // guard against duplicate detection per file
+    property string activeSubtitleUrl: ""
+
+    // Set by main.cpp via engine.setInitialProperties() when MAPL is launched
+    // by double-clicking a file in Dolphin or via xdg-open / command line.
+    property string initialFileUrl: ""
+
+    Component.onCompleted: {
+        if (initialFileUrl !== "") {
+            loadMediaFile(initialFileUrl)
+        }
+    }
+
     onVisibilityChanged: {
         if (window.visibility !== Window.FullScreen) {
             controlsVisible = true
@@ -323,17 +339,28 @@ ApplicationWindow {
             console.log("[DEBUG] MediaPlayer duration changed to:", player.duration, "source:", player.source.toString())
             if (player.duration > 0 && player.source.toString() !== "") {
                 var lowerUrl = player.source.toString().toLowerCase()
-                var isVideo = lowerUrl.endsWith(".mp4") || lowerUrl.endsWith(".mkv") || 
-                              lowerUrl.endsWith(".webm") || lowerUrl.endsWith(".avi") || 
-                              lowerUrl.endsWith(".mov") || lowerUrl.endsWith(".flv") || 
-                              lowerUrl.endsWith(".m4v") || lowerUrl.endsWith(".ogv") || 
-                              lowerUrl.endsWith(".ts")
+                var isVideo = lowerUrl.endsWith(".mp4") || lowerUrl.endsWith(".mkv") ||
+                              lowerUrl.endsWith(".webm") || lowerUrl.endsWith(".avi") ||
+                              lowerUrl.endsWith(".mov") || lowerUrl.endsWith(".flv") ||
+                              lowerUrl.endsWith(".m4v") || lowerUrl.endsWith(".ogv") ||
+                              lowerUrl.endsWith(".ts")  || lowerUrl.endsWith(".wmv") ||
+                              lowerUrl.endsWith(".3gp") || lowerUrl.endsWith(".mpg") ||
+                              lowerUrl.endsWith(".mpeg")
                 if (isVideo) {
                     console.log("[DEBUG] Generating timeline previews for:", player.source.toString())
                     controller.generateTimelinePreviews(player.source.toString(), player.duration / 1000.0)
                 } else {
                     console.log("[DEBUG] Track is not a video file.")
                 }
+            }
+        }
+
+        onTracksChanged: {
+            // Fires once when Qt has finished scanning embedded audio/subtitle tracks.
+            // We use subtitleDetectionDone to ensure we only run once per media file.
+            if (!subtitleDetectionDone) {
+                subtitleDetectionDone = true
+                detectSubtitles()
             }
         }
 
@@ -394,7 +421,11 @@ ApplicationWindow {
     FileDialog {
         id: mediaFileDialog
         title: "Select Video/Audio File"
-        nameFilters: ["Media Files (*.mp4 *.webm *.mp3 *.wav *.ogg)"]
+        nameFilters: [
+            "All Media Files (*.mp4 *.mkv *.avi *.mov *.webm *.flv *.m4v *.ts *.ogv *.wmv *.3gp *.mpg *.mpeg *.mp3 *.flac *.wav *.ogg *.m4a *.aac *.opus *.wma *.aiff *.wv *.ape)",
+            "Video Files (*.mp4 *.mkv *.avi *.mov *.webm *.flv *.m4v *.ts *.ogv *.wmv *.3gp *.mpg *.mpeg)",
+            "Audio Files (*.mp3 *.flac *.wav *.ogg *.m4a *.aac *.opus *.wma *.aiff *.wv *.ape)"
+        ]
         onAccepted: {
             loadMediaFile(selectedFile)
         }
@@ -421,33 +452,26 @@ ApplicationWindow {
     FileDialog {
         id: lyricsFileDialog
         title: "Select Lyrics or Subtitles File"
-        nameFilters: ["Lyrics/Subtitles Files (*.txt *.srt)"]
+        nameFilters: ["Subtitles & Lyrics (*.srt *.vtt *.txt)"]
         onAccepted: {
             var fileUrl = selectedFile.toString()
-            var request = new XMLHttpRequest()
-            request.open("GET", fileUrl, true)
-            request.onreadystatechange = function() {
-                if (request.readyState === XMLHttpRequest.DONE && (request.status === 200 || request.status === 0)) {
-                    var lower = fileUrl.toLowerCase()
-                    if (lower.endsWith(".srt")) {
-                        var chunks = parseSRT(request.responseText)
-                        if (chunks.length > 0) {
-                            subtitleChunks = chunks
-                            currentLyrics = ""
-                            currentView = "lyrics"
-                            showMessage("Subtitles loaded.")
-                        } else {
-                            showMessage("Failed to parse subtitles file.")
-                        }
-                    } else {
+            var lower = fileUrl.toLowerCase()
+            if (lower.endsWith(".srt") || lower.endsWith(".vtt")) {
+                loadSubtitleFile(fileUrl)
+            } else {
+                // Plain lyrics .txt
+                var request = new XMLHttpRequest()
+                request.open("GET", fileUrl, true)
+                request.onreadystatechange = function() {
+                    if (request.readyState === XMLHttpRequest.DONE && (request.status === 200 || request.status === 0)) {
                         currentLyrics = request.responseText
                         subtitleChunks = []
                         currentView = "lyrics"
                         showMessage("Lyrics loaded.")
                     }
                 }
+                request.send()
             }
-            request.send()
             sidebarOpen = false
         }
     }
@@ -949,7 +973,7 @@ ApplicationWindow {
                     anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    anchors.bottom: (currentView === "video") ? parent.bottom : controlsPanel.top
+                    anchors.bottom: (currentView === "video" && window.visibility === Window.FullScreen) ? parent.bottom : controlsPanel.top
                     // Video mode: minimal inset so the video uses max space
                     anchors.margins: (currentView === "video") ? 0 : 24
                     anchors.topMargin: (currentView === "video") ? 0 : 36
@@ -3583,29 +3607,89 @@ ApplicationWindow {
         return hours * 3600 + minutes * 60 + seconds;
     }
 
-    function checkForAutoSubtitles(mediaUrl) {
-        var baseStr = mediaUrl.toString();
-        var lastDotIdx = baseStr.lastIndexOf(".");
-        if (lastDotIdx === -1) return;
-        
-        var srtUrl = baseStr.substring(0, lastDotIdx) + ".srt";
-        
+    // Detects all subtitle options for the current track:
+    // - External .srt / .vtt files beside the media (via C++ directory scan)
+    // - Embedded subtitle tracks reported by Qt MediaPlayer
+    // Called from player.onTracksChanged (once per file, guarded by subtitleDetectionDone).
+    function detectSubtitles() {
+        if (currentTrackIndex < 0 || playlist.length === 0) return
+        var mediaUrl = playlist[currentTrackIndex].url.toString()
+
+        var allOptions = []
+
+        // 1. External subtitle files in the same directory
+        var externalSubs = controller.findSubtitleFiles(mediaUrl)
+        for (var i = 0; i < externalSubs.length; i++) {
+            allOptions.push({
+                label:         externalSubs[i].label,
+                url:           externalSubs[i].url,
+                isEmbedded:    false,
+                embeddedIndex: -1
+            })
+        }
+
+        // 2. Embedded subtitle tracks from Qt MediaPlayer
+        for (var j = 0; j < player.subtitleTracks.length; j++) {
+            var track = player.subtitleTracks[j]
+            var lang  = track.value(MediaMetaData.Language) || ""
+            var title = track.value(MediaMetaData.Title)    || ""
+            var lbl   = lang !== "" ? lang : (title !== "" ? title : ("Track " + (j + 1)))
+            allOptions.push({
+                label:         "\uD83C\uDF9E\uFE0F " + lbl,   // 🎬 prefix marks embedded tracks
+                url:           "",
+                isEmbedded:    true,
+                embeddedIndex: j
+            })
+        }
+
+        availableSubtitles = allOptions
+
+        if (allOptions.length === 0) {
+            // Nothing found — leave subtitles off
+        } else if (allOptions.length === 1 && !allOptions[0].isEmbedded) {
+            // Single external file: auto-load silently (preserves existing behaviour)
+            loadSubtitleFile(allOptions[0].url)
+        } else if (allOptions.length >= 1) {
+            // Multiple options or any embedded track: show the picker
+            subtitlePickerVisible = true
+        }
+    }
+
+    // Loads an .srt or .vtt file from a URL into subtitleChunks.
+    function loadSubtitleFile(fileUrl) {
         var request = new XMLHttpRequest()
-        request.open("GET", srtUrl, true)
+        request.open("GET", fileUrl, true)
         request.onreadystatechange = function() {
-            if (request.readyState === XMLHttpRequest.DONE) {
-                if (request.status === 200 || (request.status === 0 && request.responseText !== "")) {
-                    var chunks = parseSRT(request.responseText);
-                    if (chunks.length > 0) {
-                        subtitleChunks = chunks;
-                        currentLyrics = "";
-                        
-                        showMessage("Auto-detected subtitles file (.srt).")
-                    }
+            if (request.readyState === XMLHttpRequest.DONE &&
+                (request.status === 200 || (request.status === 0 && request.responseText !== ""))) {
+                var lower = fileUrl.toLowerCase()
+                var chunks = lower.endsWith(".vtt") ? parseVTT(request.responseText)
+                                                    : parseSRT(request.responseText)
+                if (chunks.length > 0) {
+                    subtitleChunks = chunks
+                    currentLyrics  = ""
+                    player.activeSubtitleTrack = -1  // disable any embedded track
+                    activeSubtitleUrl = fileUrl.toString()
+                    showMessage("Subtitles loaded.")
+                } else {
+                    activeSubtitleUrl = ""
+                    showMessage("Failed to parse subtitle file.")
                 }
             }
         }
         request.send()
+    }
+
+    // Parses WebVTT into the same [{start, end, text}] format as parseSRT.
+    function parseVTT(vttText) {
+        // Strip the WEBVTT header + any NOTE/STYLE/REGION blocks, then hand off to parseSRT.
+        var cleaned = vttText
+            .replace(/WEBVTT[^\n]*/g, "")
+            .replace(/NOTE[^\n]*(\n[^\n]+)*/g, "")
+            .replace(/STYLE[\s\S]*?(?=\n\n)/g, "")
+            .replace(/REGION[\s\S]*?(?=\n\n)/g, "")
+            .replace(/\./g, ",")   // VTT uses '.' for ms separator, SRT uses ','
+        return parseSRT(cleaned)
     }
 
     function formatVttTime(seconds) {
@@ -3621,22 +3705,29 @@ ApplicationWindow {
             var track = playlist[index]
             player.source = track.url
             // title now derived reactively from currentTrackIndex
-            
+
+            // Reset subtitle state for new file
             subtitleChunks = []
             activeSubtitleText = ""
             currentLyrics = ""
             currentTimelinePreviewSheet = ""
-            
+            availableSubtitles = []
+            subtitlePickerVisible = false
+            subtitleDetectionDone = false  // allow detectSubtitles to run for this file
+            activeSubtitleUrl = ""
+
             currentTrackIndex = index
-            
+
             var lowerUrl = track.url.toString().toLowerCase()
-            var isVideo = lowerUrl.endsWith(".mp4") || lowerUrl.endsWith(".mkv") || 
-                          lowerUrl.endsWith(".webm") || lowerUrl.endsWith(".avi") || 
-                          lowerUrl.endsWith(".mov") || lowerUrl.endsWith(".flv") || 
-                          lowerUrl.endsWith(".m4v") || lowerUrl.endsWith(".ogv") || 
-                          lowerUrl.endsWith(".ts")
+            var isVideo = lowerUrl.endsWith(".mp4")  || lowerUrl.endsWith(".mkv")  ||
+                          lowerUrl.endsWith(".webm") || lowerUrl.endsWith(".avi")  ||
+                          lowerUrl.endsWith(".mov")  || lowerUrl.endsWith(".flv")  ||
+                          lowerUrl.endsWith(".m4v")  || lowerUrl.endsWith(".ogv")  ||
+                          lowerUrl.endsWith(".ts")   || lowerUrl.endsWith(".wmv")  ||
+                          lowerUrl.endsWith(".3gp")  || lowerUrl.endsWith(".mpg")  ||
+                          lowerUrl.endsWith(".mpeg")
             currentView = isVideo ? "video" : "audio"
-            
+
             var savedThumb = controller.getThumbnail(track.url)
             if (savedThumb !== "") {
                 currentThumbnailDataUrl = "data:image/png;base64," + savedThumb
@@ -3644,8 +3735,7 @@ ApplicationWindow {
                 currentThumbnailDataUrl = ""
                 resetTheme()
             }
-            
-            checkForAutoSubtitles(track.url)
+            // Subtitle detection now happens in player.onTracksChanged → detectSubtitles()
         }
     }
 
@@ -3814,5 +3904,279 @@ ApplicationWindow {
         var s = num + "";
         while (s.length < size) s = "0" + s;
         return s;
+    }
+
+    // ─── Subtitle Track Picker ──────────────────────────────────────────────────
+    Popup {
+        id: subtitlePickerPopup
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(460, window.width - 48)
+        modal: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        visible: subtitlePickerVisible
+        padding: 0
+
+        onClosed: subtitlePickerVisible = false
+
+        // Dark dim behind popup
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(0, 0, 0, 0.55)
+        }
+
+        background: Rectangle {
+            color: "#0f172a"
+            radius: 16
+            border.color: "#334155"
+            border.width: 1
+
+            // Subtle top glow
+            Rectangle {
+                anchors.top: parent.top
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: parent.width * 0.5
+                height: 1
+                color: "#38bdf8"
+                opacity: 0.4
+                radius: 1
+            }
+        }
+
+        Column {
+            width: parent.width
+            spacing: 0
+
+            // Header
+            Item {
+                width: parent.width
+                height: 56
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.leftMargin: 20
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "🔤  Choose Subtitle Track"
+                    color: "white"
+                    font.pixelSize: 15
+                    font.bold: true
+                    font.letterSpacing: 0.3
+                }
+
+                // Close button
+                Button {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    implicitWidth: 32
+                    implicitHeight: 32
+                    flat: true
+                    padding: 0
+                    contentItem: Text {
+                        text: "✕"
+                        color: "#64748b"
+                        font.pixelSize: 13
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        color: parent.hovered ? "#1e293b" : "transparent"
+                        radius: 6
+                    }
+                    onClicked: subtitlePickerPopup.close()
+                }
+
+                // Divider
+                Rectangle {
+                    anchors.bottom: parent.bottom
+                    width: parent.width
+                    height: 1
+                    color: "#1e293b"
+                }
+            }
+
+            // Subtitle option list (max 280px, scrollable)
+            ListView {
+                id: subtitleOptionsList
+                width: parent.width
+                height: Math.min(contentHeight, 280)
+                clip: true
+                model: availableSubtitles
+
+                // "No Subtitles" header row (always first)
+                header: Item {
+                    width: subtitleOptionsList.width
+                    height: 50
+
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: 4
+                        radius: 8
+                        color: (subtitleChunks.length === 0 && player.activeSubtitleTrack === -1)
+                               ? "#1e3a5f" : "transparent"
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onEntered: parent.color = Qt.binding(function() {
+                                return (subtitleChunks.length === 0 && player.activeSubtitleTrack === -1)
+                                       ? "#1e3a5f" : "#1e293b"
+                            })
+                            onExited: parent.color = Qt.binding(function() {
+                                return (subtitleChunks.length === 0 && player.activeSubtitleTrack === -1)
+                                       ? "#1e3a5f" : "transparent"
+                            })
+                            onClicked: {
+                                subtitleChunks = []
+                                activeSubtitleText = ""
+                                activeSubtitleUrl = ""
+                                player.activeSubtitleTrack = -1
+                                subtitlePickerPopup.close()
+                                showMessage("Subtitles off")
+                            }
+
+                            Row {
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.left: parent.left
+                                anchors.leftMargin: 16
+                                spacing: 12
+
+                                Text {
+                                    text: "⊘"
+                                    color: "#64748b"
+                                    font.pixelSize: 16
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "No Subtitles"
+                                    color: "#94a3b8"
+                                    font.pixelSize: 14
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                        }
+                    }
+                }
+
+                delegate: Item {
+                    width: subtitleOptionsList.width
+                    height: 50
+
+                    property bool isActive: modelData.isEmbedded
+                        ? (player.activeSubtitleTrack === modelData.embeddedIndex)
+                        : (activeSubtitleUrl === modelData.url.toString() && player.activeSubtitleTrack === -1)
+
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: 4
+                        radius: 8
+                        color: parent.isActive ? "#1e3a5f" : "transparent"
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onEntered: parent.color = parent.parent.isActive ? "#1e4a7f" : "#1e293b"
+                            onExited:  parent.color = parent.parent.isActive ? "#1e3a5f" : "transparent"
+
+                            onClicked: {
+                                var opt = availableSubtitles[index]
+                                if (opt.isEmbedded) {
+                                    // Activate embedded track — Qt renders it natively
+                                    subtitleChunks = []
+                                    activeSubtitleText = ""
+                                    activeSubtitleUrl = ""
+                                    player.activeSubtitleTrack = opt.embeddedIndex
+                                    showMessage("Embedded subtitle activated")
+                                } else {
+                                    // Load external .srt / .vtt into our overlay
+                                    player.activeSubtitleTrack = -1
+                                    loadSubtitleFile(opt.url)
+                                }
+                                subtitlePickerPopup.close()
+                            }
+
+                            Row {
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.left: parent.left
+                                anchors.right: activeIndicator.left
+                                anchors.leftMargin: 16
+                                anchors.rightMargin: 8
+                                spacing: 10
+
+                                Text {
+                                    text: modelData.isEmbedded ? "🎬" : "📄"
+                                    font.pixelSize: 15
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: modelData.isEmbedded
+                                          ? modelData.label.replace("🎬 ", "")
+                                          : modelData.label
+                                    color: "white"
+                                    font.pixelSize: 14
+                                    elide: Text.ElideRight
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    visible: modelData.isEmbedded
+                                    text: "embedded"
+                                    color: "#38bdf8"
+                                    font.pixelSize: 10
+                                    font.letterSpacing: 0.5
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    leftPadding: 2
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        anchors.margins: -3
+                                        color: Qt.rgba(0.22, 0.74, 0.98, 0.12)
+                                        border.color: Qt.rgba(0.22, 0.74, 0.98, 0.3)
+                                        border.width: 1
+                                        radius: 4
+                                        z: -1
+                                    }
+                                }
+                            }
+
+                            // Active checkmark
+                            Text {
+                                id: activeIndicator
+                                anchors.right: parent.right
+                                anchors.rightMargin: 16
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: parent.parent.parent.isActive
+                                text: "✓"
+                                color: "#38bdf8"
+                                font.pixelSize: 14
+                                font.bold: true
+                            }
+                        }
+                    }
+                }
+
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                }
+            }
+
+            // Footer hint
+            Item {
+                width: parent.width
+                height: 40
+
+                Rectangle {
+                    anchors.top: parent.top
+                    width: parent.width
+                    height: 1
+                    color: "#1e293b"
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: availableSubtitles.length + " track" + (availableSubtitles.length !== 1 ? "s" : "") + " available"
+                    color: "#475569"
+                    font.pixelSize: 11
+                }
+            }
+        }
     }
 }
