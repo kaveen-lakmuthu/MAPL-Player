@@ -13,7 +13,7 @@ ApplicationWindow {
     minimumHeight: 600
     visible: true
     title: "MAPL Player - Native C++"
-    font.family: "Inter"
+    font.family: "Inter, Noto Sans Sinhala, Noto Sans, sans-serif"
 
     // --- State Properties ---
     property var playlist: []
@@ -373,12 +373,17 @@ ApplicationWindow {
             if (subtitleChunks.length > 0) {
                 var posSec = player.position / 1000.0
                 var activeIdx = -1
+                var minDuration = 999999
                 for (var i = 0; i < subtitleChunks.length; i++) {
                     var chunk = subtitleChunks[i]
+                    if (chunk.isMetadata) continue
                     if (posSec >= chunk.start && posSec <= chunk.end) {
-                        activeSubtitleText = chunk.text
-                        activeIdx = i
-                        break
+                        var dur = chunk.end - chunk.start
+                        if (dur >= 0 && dur < minDuration) {
+                            minDuration = dur
+                            activeSubtitleText = chunk.text
+                            activeIdx = i
+                        }
                     }
                 }
                 
@@ -2235,10 +2240,12 @@ ApplicationWindow {
                     Text {
                         id: subText
                         anchors.centerIn: parent
+                        width: parent.width - 32
                         text: activeSubtitleText
                         color: subtitleTextColor
                         font.pixelSize: subtitleFontSize
                         font.bold: true
+                        font.family: "Inter, Noto Sans Sinhala, Noto Sans, sans-serif"
                         wrapMode: Text.WordWrap
                         horizontalAlignment: Text.AlignHCenter
                     }
@@ -2477,20 +2484,26 @@ ApplicationWindow {
                                                 color: "#93c5fd" // Light blue accent text for preview subtitles
                                                 font.pixelSize: 10
                                                 font.bold: true
-                                                font.family: "Inter"
+                                                font.family: "Inter, Noto Sans Sinhala, Noto Sans, sans-serif"
                                                 visible: text !== ""
                                                 
                                                 text: {
                                                     if (subtitleChunks.length === 0) return "";
                                                     var sec = previewCard.hoverPercent * (player.duration / 1000.0);
-                                                    
+                                                    var bestText = "";
+                                                    var minDuration = 999999;
                                                     for (var i = 0; i < subtitleChunks.length; i++) {
                                                         var chunk = subtitleChunks[i];
+                                                        if (chunk.isMetadata) continue;
                                                         if (sec >= chunk.start && sec <= chunk.end) {
-                                                            return chunk.text;
+                                                            var dur = chunk.end - chunk.start;
+                                                            if (dur >= 0 && dur < minDuration) {
+                                                                 minDuration = dur;
+                                                                 bestText = chunk.text;
+                                                            }
                                                         }
                                                     }
-                                                    return "";
+                                                    return bestText;
                                                 }
                                             }
                                         }
@@ -3591,6 +3604,29 @@ ApplicationWindow {
                 end: endSec,
                 text: textStr
             });
+        }
+        
+        // Mark overlapping metadata/banner chunks (e.g. long credit/title lines that overlap dialogues)
+        for (var i = 0; i < chunks.length; i++) {
+            var chunkA = chunks[i];
+            var durA = chunkA.end - chunkA.start;
+            chunkA.isMetadata = false;
+            
+            if (durA > 15.0) {
+                for (var j = 0; j < chunks.length; j++) {
+                    if (i === j) continue;
+                    var chunkB = chunks[j];
+                    var durB = chunkB.end - chunkB.start;
+                    
+                    if (durB < durA) {
+                        var overlap = (chunkA.start < chunkB.end && chunkB.start < chunkA.end);
+                        if (overlap) {
+                            chunkA.isMetadata = true;
+                            break;
+                        }
+                    }
+                }
+            }
         }
         
         return chunks;
