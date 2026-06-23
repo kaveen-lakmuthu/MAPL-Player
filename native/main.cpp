@@ -16,6 +16,7 @@ int main(int argc, char *argv[]) {
     // qputenv("LIBVA_DRIVERS_PATH", "/dev/null"); // belt-and-suspenders
     qputenv("QML_XHR_ALLOW_FILE_READ", "1");    // allow QML XMLHttpRequest to read local files (e.g. XSPF playlists)
     qputenv("QT_FFMPEG_DECODING_HW_DEVICE_TYPES", "vaapi"); // force Qt Multimedia FFmpeg backend to use VA-API hardware decoding
+    qputenv("QT_FFMPEG_HW_ALLOW_PROFILE_MISMATCH", "1");    // bypass strict profile checks to avoid software decoding fallback
 
     // Enable system-default high-DPI scaling
     QApplication app(argc, argv);

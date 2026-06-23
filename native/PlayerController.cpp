@@ -23,6 +23,7 @@ PlayerController::~PlayerController()
     }
     if (m_previewProcess) {
         if (m_previewProcess->state() != QProcess::NotRunning) {
+            m_previewProcess->disconnect();
             m_previewProcess->kill();
             m_previewProcess->waitForFinished();
         }
@@ -210,6 +211,7 @@ void PlayerController::generateTimelinePreviews(const QString &trackUrl, double 
     // Cancel any running preview process
     if (m_previewProcess) {
         if (m_previewProcess->state() != QProcess::NotRunning) {
+            m_previewProcess->disconnect(); // Disconnect signals to prevent false-positive warnings or callbacks on deleted object
             m_previewProcess->kill();
             m_previewProcess->waitForFinished();
         }
@@ -218,13 +220,17 @@ void PlayerController::generateTimelinePreviews(const QString &trackUrl, double 
     }
 
     m_previewProcess = new QProcess(this);
+    m_previewProcess->setProcessChannelMode(QProcess::ForwardedChannels);
 
     QStringList arguments;
     arguments << "-y"
+              << "-skip_frame" << "nokey"  // Decode only keyframes for ultra-fast generation and low CPU usage
+              << "-threads" << "2"         // Limit ffmpeg to 2 threads to prevent high CPU utilization spikes
               << "-i" << localInput
               << "-vf" << QString("fps=100/%1,scale=160:90,tile=10x10").arg(durationSec)
               << "-frames:v" << "1"
               << "-an"
+              << "-update" << "1"          // Write single image output correctly without sequence pattern warning
               << cachePath;
 
     connect(m_previewProcess, &QProcess::finished, this, [this, trackUrl, cachePath](int exitCode, QProcess::ExitStatus exitStatus) {
