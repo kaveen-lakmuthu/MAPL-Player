@@ -1393,7 +1393,7 @@ ApplicationWindow {
                                         onTextChanged: transcriptSearchQuery = text
                                     }
 
-                                    // Settings toggle (⚙)
+                                    // Settings toggle
                                     Button {
                                         id: subSettingsToggleBtn
                                         flat: true
@@ -1444,7 +1444,7 @@ ApplicationWindow {
                                         onClicked: lyricsFileDialog.open()
                                     }
 
-                                    // Subtitle track picker button (🔤)
+                                    // Subtitle track picker button
                                     Button {
                                         id: openPickerBtn
                                         flat: true
@@ -3825,7 +3825,7 @@ ApplicationWindow {
             var title = track.value(MediaMetaData.Title)    || ""
             var lbl   = lang !== "" ? lang : (title !== "" ? title : ("Track " + (j + 1)))
             allOptions.push({
-                label:         "\uD83C\uDF9E\uFE0F " + lbl,   // 🎬 prefix marks embedded tracks
+                label:         "\uD83C\uDF9E\uFE0F " + lbl,   // Prefix marks embedded tracks
                 url:           "",
                 isEmbedded:    true,
                 embeddedIndex: j
