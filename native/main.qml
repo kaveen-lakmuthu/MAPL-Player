@@ -52,6 +52,15 @@ ApplicationWindow {
     // View state: 'audio' | 'video' | 'lyrics' | 'playlist'
     property string currentView: "audio"
     property bool sidebarOpen: false
+    property bool sidebarExpanded: true
+
+    onCurrentViewChanged: {
+        if (currentView !== "video") {
+            sidebarExpanded = true
+        } else if (player.playbackState === MediaPlayer.PlayingState) {
+            sidebarExpanded = false
+        }
+    }
     property string currentThumbnailDataUrl: ""
     property string currentTimelinePreviewSheet: ""
     property bool controlsVisible: true
@@ -363,6 +372,9 @@ ApplicationWindow {
         }
 
         onPlaybackStateChanged: {
+            if (player.playbackState === MediaPlayer.PlayingState && currentView === "video") {
+                sidebarExpanded = false
+            }
             if (player.playbackState === MediaPlayer.StoppedState && playlist.length > 0) {
                 if (controller.loadLoop()) {
                     loadTrack((currentTrackIndex + 1) % playlist.length)
@@ -589,9 +601,15 @@ ApplicationWindow {
         Rectangle {
             id: leftPanel
             Layout.fillHeight: true
-            width: 155
+            Layout.preferredWidth: (window.visibility !== Window.FullScreen && sidebarExpanded) ? 155 : 0
+            width: Layout.preferredWidth
+            clip: true
             color: "#0f172a" // Deep Slate-900
             visible: window.visibility !== Window.FullScreen
+
+            Behavior on Layout.preferredWidth {
+                NumberAnimation { duration: 220; easing.type: Easing.OutQuart }
+            }
 
             // Decorative separator border
             Rectangle {
@@ -605,20 +623,51 @@ ApplicationWindow {
                 anchors.fill: parent
                 anchors.margins: 14
                 spacing: 14
+                opacity: Math.max(0.0, Math.min(1.0, (leftPanel.width - 80) / 75))
+                visible: leftPanel.width > 80
 
-                // Logo/Header Space
+                // Logo/Header Space with collapse button
                 Item {
                     Layout.preferredHeight: 50
                     Layout.fillWidth: true
                     RowLayout {
-                        anchors.centerIn: parent
-                        spacing: 8
+                        anchors.fill: parent
+                        spacing: 6
+
                         Text {
                             text: "MAPL"
                             color: "white"
                             font.bold: true
                             font.pixelSize: 18
                             font.letterSpacing: 1.5
+                            Layout.fillWidth: true
+                        }
+
+                        // Collapse button — lives inside the panel
+                        Button {
+                            id: collapseSidebarBtn
+                            implicitWidth: 28
+                            implicitHeight: 28
+                            flat: true
+                            padding: 0
+                            Layout.alignment: Qt.AlignVCenter
+
+                            background: Rectangle {
+                                color: collapseSidebarBtn.hovered ? "#1e293b" : "transparent"
+                                radius: 6
+                                border.color: collapseSidebarBtn.hovered ? "#334155" : "transparent"
+                                border.width: 1
+                            }
+
+                            contentItem: Text {
+                                text: "☰"
+                                color: collapseSidebarBtn.hovered ? "white" : "#64748b"
+                                font.pixelSize: 15
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            onClicked: sidebarExpanded = false
                         }
                     }
                 }
@@ -830,6 +879,34 @@ ApplicationWindow {
                 z: 100
                 visible: window.visibility !== Window.FullScreen
 
+                // Expand button — only visible when sidebar is collapsed
+                Button {
+                    id: toggleSidebarBtn
+                    implicitWidth: 32
+                    implicitHeight: 32
+                    flat: true
+                    padding: 0
+                    Layout.alignment: Qt.AlignVCenter
+                    visible: !sidebarExpanded
+
+                    background: Rectangle {
+                        color: toggleSidebarBtn.hovered ? "#1e293b" : "transparent"
+                        radius: 6
+                        border.color: toggleSidebarBtn.hovered ? "#334155" : "transparent"
+                        border.width: 1
+                    }
+
+                    contentItem: Text {
+                        text: "☰"
+                        color: toggleSidebarBtn.hovered ? "white" : "#94a3b8"
+                        font.pixelSize: 18
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    onClicked: sidebarExpanded = true
+                }
+
                 Text {
                     text: currentView === "video" ? "📺" : (currentView === "lyrics" ? "📝" : "🎵")
                     font.pixelSize: 22
@@ -861,8 +938,8 @@ ApplicationWindow {
                 clip: true
 
                 Behavior on color { ColorAnimation { duration: 400 } }
-                Behavior on width  { NumberAnimation { duration: 250; easing.type: Easing.InOutQuad } }
-                Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.InOutQuad } }
+                // No separate width/height Behavior — centralPlayerBox is a percentage child
+                // of the RowLayout's right Item, which already reflows smoothly with leftPanel.
 
 
 
@@ -3363,7 +3440,7 @@ ApplicationWindow {
     // Overlay (anchored next to the leftPanel so the vertical sidebar stays bright and matches the drawer)
     Rectangle {
         anchors.left: parent.left
-        anchors.leftMargin: leftPanel.visible ? 155 : 0
+        anchors.leftMargin: leftPanel.width
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
