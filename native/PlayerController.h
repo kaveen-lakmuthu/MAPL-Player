@@ -45,6 +45,7 @@ public:
     Q_INVOKABLE void savePlayFolderToggle(bool enabled);
     Q_INVOKABLE bool loadPlayFolderToggle() const;
     Q_INVOKABLE QVariantList findSubtitleFiles(const QString &mediaUrl);
+    Q_INVOKABLE QString extractEmbeddedSubtitle(const QString &mediaUrl, int trackIndex);
 
 signals:
     void videoSinkChanged();
@@ -65,6 +66,7 @@ private:
     QProcess* m_previewProcess;
     QString m_currentPreviewTrack;
     QString m_currentPreviewPath;
+    QStringList m_tempSubtitleFiles;
 };
 
 #endif // PLAYERCONTROLLER_H

@@ -29,6 +29,9 @@ PlayerController::~PlayerController()
         }
         delete m_previewProcess;
     }
+    for (const QString &path : m_tempSubtitleFiles) {
+        QFile::remove(path);
+    }
 }
 
 QVideoSink* PlayerController::videoSink() const
@@ -339,3 +342,59 @@ QVariantList PlayerController::findSubtitleFiles(const QString &mediaUrl)
 
     return result;
 }
+
+QString PlayerController::extractEmbeddedSubtitle(const QString &mediaUrl, int trackIndex)
+{
+    if (mediaUrl.isEmpty() || trackIndex < 0) {
+        return "";
+    }
+
+    QUrl url(mediaUrl);
+    QString localInput = url.isLocalFile() ? url.toLocalFile() : mediaUrl;
+
+    if (!QFile::exists(localInput)) {
+        qDebug() << "Subtitle extraction: File does not exist locally:" << localInput;
+        return "";
+    }
+
+    // Generate a unique cache filename using MD5 hash of mediaUrl and trackIndex
+    QByteArray hash = QCryptographicHash::hash((mediaUrl + QString::number(trackIndex)).toUtf8(), QCryptographicHash::Md5).toHex();
+    QString tempPath = QDir::tempPath() + "/mapl_sub_" + hash + ".srt";
+
+    // Track the temporary file for cleanup in destructor
+    if (!m_tempSubtitleFiles.contains(tempPath)) {
+        m_tempSubtitleFiles.append(tempPath);
+    }
+
+    // Check if the extracted file already exists
+    if (QFile::exists(tempPath)) {
+        qDebug() << "Subtitle extraction: Using cached subtitle file:" << tempPath;
+        return QUrl::fromLocalFile(tempPath).toString();
+    }
+
+    QProcess process;
+    QStringList arguments;
+    arguments << "-y"
+              << "-i" << localInput
+              << "-map" << QString("0:s:%1").arg(trackIndex)
+              << "-c:s" << "srt"
+              << tempPath;
+
+    qDebug() << "Starting subtitle extraction: ffmpeg" << arguments.join(" ");
+    process.start("ffmpeg", arguments);
+    if (process.waitForFinished(5000)) { // 5 seconds timeout
+        if (process.exitCode() == 0 && QFile::exists(tempPath)) {
+            qDebug() << "Subtitle extraction successful:" << tempPath;
+            return QUrl::fromLocalFile(tempPath).toString();
+        } else {
+            qWarning() << "Subtitle extraction failed: ffmpeg exited with code" << process.exitCode();
+        }
+    } else {
+        qWarning() << "Subtitle extraction timed out";
+        process.kill();
+        process.waitForFinished();
+    }
+
+    return "";
+}
+

@@ -70,6 +70,7 @@ ApplicationWindow {
     property bool subtitlePickerVisible: false
     property bool subtitleDetectionDone: false  // guard against duplicate detection per file
     property string activeSubtitleUrl: ""
+    property int activeEmbeddedTrackIndex: -1
 
     // Set by main.cpp via engine.setInitialProperties() when MAPL is launched
     // by double-clicking a file in Dolphin or via xdg-open / command line.
@@ -373,20 +374,48 @@ ApplicationWindow {
             if (subtitleChunks.length > 0) {
                 var posSec = player.position / 1000.0
                 var activeIdx = -1
-                var minDuration = 999999
+                var activeChunks = []
                 for (var i = 0; i < subtitleChunks.length; i++) {
                     var chunk = subtitleChunks[i]
-                    if (chunk.isMetadata) continue
                     if (posSec >= chunk.start && posSec <= chunk.end) {
-                        var dur = chunk.end - chunk.start
-                        if (dur >= 0 && dur < minDuration) {
-                            minDuration = dur
-                            activeSubtitleText = chunk.text
-                            activeIdx = i
+                        var duplicate = false
+                        for (var c = 0; c < activeChunks.length; c++) {
+                            if (activeChunks[c].text === chunk.text) {
+                                duplicate = true
+                                break
+                            }
+                        }
+                        if (!duplicate) {
+                            activeChunks.push({
+                                index: i,
+                                start: chunk.start,
+                                end: chunk.end,
+                                text: chunk.text
+                            })
                         }
                     }
                 }
-                
+
+                if (activeChunks.length > 0) {
+                    // Sort by duration descending (longest duration first, i.e., title cards/lyrics on top, dialogue on bottom)
+                    activeChunks.sort(function(a, b) {
+                        var durA = a.end - a.start
+                        var durB = b.end - b.start
+                        return durB - durA
+                    })
+
+                    var joinedText = ""
+                    for (var k = 0; k < activeChunks.length; k++) {
+                        if (k > 0) joinedText += "\n"
+                        joinedText += activeChunks[k].text
+                    }
+
+                    activeSubtitleText = joinedText
+                    activeIdx = activeChunks[activeChunks.length - 1].index
+                } else {
+                    activeSubtitleText = ""
+                }
+
                 if (activeIdx !== -1) {
                     currentActiveSubtitleIndex = activeIdx
                     // Only auto-scroll the list when not searching, so the user can browse freely
@@ -397,7 +426,6 @@ ApplicationWindow {
                         }
                     }
                 } else {
-                    activeSubtitleText = ""
                     currentActiveSubtitleIndex = -1
                 }
             }
@@ -462,6 +490,7 @@ ApplicationWindow {
             var fileUrl = selectedFile.toString()
             var lower = fileUrl.toLowerCase()
             if (lower.endsWith(".srt") || lower.endsWith(".vtt")) {
+                activeEmbeddedTrackIndex = -1
                 loadSubtitleFile(fileUrl)
             } else {
                 // Plain lyrics .txt
@@ -1411,6 +1440,31 @@ ApplicationWindow {
                                             verticalAlignment: Text.AlignVCenter
                                         }
                                         onClicked: lyricsFileDialog.open()
+                                    }
+
+                                    // Subtitle track picker button (🔤)
+                                    Button {
+                                        id: openPickerBtn
+                                        flat: true
+                                        Layout.preferredWidth: 36
+                                        Layout.preferredHeight: 36
+                                        padding: 0
+                                        visible: availableSubtitles.length > 0
+                                        background: Rectangle {
+                                            color: openPickerBtn.pressed ? "#1e293b"
+                                                 : (openPickerBtn.hovered ? "#334155" : "transparent")
+                                            radius: 7
+                                            border.color: "#475569"
+                                            border.width: 1
+                                        }
+                                        contentItem: Text {
+                                            text: "🔤"
+                                            color: "white"
+                                            font.pixelSize: 16
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                        onClicked: subtitlePickerVisible = !subtitlePickerVisible
                                     }
 
                                     // Clear button
@@ -2494,7 +2548,6 @@ ApplicationWindow {
                                                     var minDuration = 999999;
                                                     for (var i = 0; i < subtitleChunks.length; i++) {
                                                         var chunk = subtitleChunks[i];
-                                                        if (chunk.isMetadata) continue;
                                                         if (sec >= chunk.start && sec <= chunk.end) {
                                                             var dur = chunk.end - chunk.start;
                                                             if (dur >= 0 && dur < minDuration) {
@@ -2564,11 +2617,10 @@ ApplicationWindow {
                             }
                         }
 
-                        RowLayout {
+                        Item {
                             id: bottomButtonsBar
                             width: parent.width
-                            implicitHeight: 48
-                            spacing: isNarrow ? 4 : 8
+                            height: 48
                             
                             property bool isNarrow: width < 660
                             property bool rightControlsAtBottom: true
@@ -2578,23 +2630,6 @@ ApplicationWindow {
                             }
                             onWidthChanged: {
                                 console.log("bottomButtonsBar width changed:", width)
-                            }
-
-                            // Left side container (symmetrical width to right side)
-                                // Left side spacer (symmetrical to right controls for centering)
-                                Item {
-                                    id: leftSideContainer
-                                    visible: !bottomButtonsBar.isNarrow && bottomButtonsBar.rightControlsAtBottom
-                                    Layout.preferredWidth: bottomButtonsBar.isNarrow ? 0 : rightControlsLayout.implicitWidth
-                                    Layout.minimumWidth: 0
-                                    Layout.preferredHeight: 32
-                                    Layout.alignment: Qt.AlignVCenter
-                                }
-
-                            // Spacer to push center controls to the middle
-                            Item {
-                                Layout.fillWidth: true
-                                onWidthChanged: console.log("Spacer 1 width:", width)
                             }
 
                             // Playback Control Buttons (Centered)
@@ -2934,30 +2969,418 @@ ApplicationWindow {
                                 }
                             }
 
-                            // Spacer to push right controls container to the right
-                            Item {
-                                Layout.fillWidth: true
-                            }
-
-                            // Right side container (symmetrical width to left side)
-                            Item {
-                                id: rightSideContainer
-                                visible: bottomButtonsBar.rightControlsAtBottom
-                                Layout.preferredWidth: bottomButtonsBar.isNarrow ? 0 : rightControlsLayout.implicitWidth
-                                Layout.minimumWidth: bottomButtonsBar.rightControlsAtBottom ? rightControlsLayout.implicitWidth : 0
-                                Layout.preferredHeight: 32
-                                Layout.alignment: Qt.AlignVCenter
-
-                                Item {
-                                    id: bottomRowAnchorItem
+                            // Right controls layout (always anchored to the right of bottomButtonsBar)
+                            RowLayout {
+                                id: rightControlsLayout
                                     anchors.right: parent.right
                                     anchors.verticalCenter: parent.verticalCenter
-                                    width: rightControlsLayout.implicitWidth
-                                    height: 32
-                                    visible: bottomButtonsBar.rightControlsAtBottom
+                                    width: implicitWidth
+                                    height: parent.height
+                                    spacing: bottomButtonsBar.isNarrow ? 8 : 12
+                                    z: 1
+                                    
+                                    opacity: (window.visibility === Window.FullScreen) ? (controlsVisible ? 1.0 : 0.0) : 1.0
+                                    Behavior on opacity {
+                                        NumberAnimation { duration: 300 }
+                                    }
+                                    visible: opacity > 0.0
+                                    
+                                    // Loop Toggle (Flat circle with Canvas vector icon)
+                                    Button {
+                                        id: loopToggleBtn
+                                        flat: true
+                                        implicitWidth: 44
+                                        implicitHeight: 44
+                                        padding: 0
+                                        leftPadding: 0
+                                        rightPadding: 0
+                                        topPadding: 0
+                                        bottomPadding: 0
+                                        property bool looping: controller.loadLoop()
+                                        property color iconColor: looping ? "#60a5fa" : (loopToggleBtn.hovered ? "#60a5fa" : "#94a3b8")
+                                        
+                                        background: Rectangle {
+                                            color: loopToggleBtn.pressed ? Qt.rgba(255, 255, 255, 0.1) : (loopToggleBtn.hovered ? Qt.rgba(255, 255, 255, 0.05) : "transparent")
+                                            radius: 18
+                                        }
+                                        
+                                        contentItem: Canvas {
+                                            id: loopIconCanvas
+                                            onWidthChanged: requestPaint()
+                                            onHeightChanged: requestPaint()
+                                            onPaint: {
+                                                var ctx = getContext("2d");
+                                                ctx.reset();
+                                                ctx.strokeStyle = loopToggleBtn.iconColor;
+                                                ctx.lineWidth = 2.2;
+                                                ctx.lineCap = "round";
+                                                ctx.lineJoin = "round";
+                                                
+                                                var w = width;
+                                                var h = height;
+                                                var cx = w / 2;
+                                                var cy = h / 2;
+                                                
+                                                // Path 1 (top half, left arrow)
+                                                ctx.beginPath();
+                                                ctx.moveTo(cx + 7, cy - 5);
+                                                ctx.lineTo(cx - 4, cy - 5);
+                                                ctx.arcTo(cx - 9, cy - 5, cx - 9, cy, 5);
+                                                ctx.lineTo(cx - 9, cy + 3);
+                                                ctx.stroke();
+                                                
+                                                // Arrow head (pointing left)
+                                                ctx.beginPath();
+                                                ctx.moveTo(cx - 1, cy - 9);
+                                                ctx.lineTo(cx - 4, cy - 5);
+                                                ctx.lineTo(cx - 1, cy - 1);
+                                                ctx.stroke();
+
+                                                // Path 2 (bottom half, right arrow)
+                                                ctx.beginPath();
+                                                ctx.moveTo(cx - 7, cy + 5);
+                                                ctx.lineTo(cx + 4, cy + 5);
+                                                ctx.arcTo(cx + 9, cy + 5, cx + 9, cy, 5);
+                                                ctx.lineTo(cx + 9, cy - 3);
+                                                ctx.stroke();
+                                                
+                                                // Arrow head (pointing right)
+                                                ctx.beginPath();
+                                                ctx.moveTo(cx + 1, cy + 1);
+                                                ctx.lineTo(cx + 4, cy + 5);
+                                                ctx.lineTo(cx + 1, cy + 9);
+                                                ctx.stroke();
+                                            }
+                                            
+                                            Connections {
+                                                target: loopToggleBtn
+                                                function onLoopingChanged() { loopIconCanvas.requestPaint(); }
+                                                function onHoveredChanged() { loopIconCanvas.requestPaint(); }
+                                                function onIconColorChanged() { loopIconCanvas.requestPaint(); }
+                                            }
+                                        }
+                                        
+                                        onClicked: {
+                                            looping = !looping
+                                            controller.saveLoop(looping)
+                                            showMessage("Playlist looping: " + (looping ? "On" : "Off"))
+                                        }
+                                    }
+
+                                    // CC Subtitle Track Picker Button
+                                    Button {
+                                        id: subPickerControlsBtn
+                                        flat: true
+                                        implicitWidth: 44
+                                        implicitHeight: 44
+                                        padding: 0
+                                        leftPadding: 0
+                                        rightPadding: 0
+                                        topPadding: 0
+                                        bottomPadding: 0
+                                        visible: availableSubtitles.length > 0
+                                        
+                                        background: Rectangle {
+                                            color: subPickerControlsBtn.pressed ? Qt.rgba(255, 255, 255, 0.1) : (subPickerControlsBtn.hovered ? Qt.rgba(255, 255, 255, 0.05) : "transparent")
+                                            radius: 18
+                                        }
+                                        
+                                        contentItem: Item {
+                                            anchors.fill: parent
+                                            
+                                            Rectangle {
+                                                anchors.centerIn: parent
+                                                width: 22
+                                                height: 16
+                                                radius: 3
+                                                color: "transparent"
+                                                border.color: subPickerControlsBtn.hovered ? "#60a5fa" : "#94a3b8"
+                                                border.width: 1.8
+                                                
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "CC"
+                                                    color: subPickerControlsBtn.hovered ? "#60a5fa" : "#94a3b8"
+                                                    font.pixelSize: 9
+                                                    font.bold: true
+                                                    font.letterSpacing: 0.5
+                                                }
+                                            }
+                                        }
+                                        
+                                        onClicked: {
+                                            subtitlePickerVisible = !subtitlePickerVisible
+                                        }
+                                    }
+
+                                    // Hoverable Volume Control (Custom Speaker + Precise Slider margins)
+                                    MouseArea {
+                                        id: volumeHoverArea
+                                        Layout.preferredWidth: volumeLayout.implicitWidth
+                                        Layout.preferredHeight: 44
+                                        width: Layout.preferredWidth
+                                        height: 44
+                                        hoverEnabled: true
+
+                                        RowLayout {
+                                            id: volumeLayout
+                                            spacing: 8
+                                            anchors.verticalCenter: parent.verticalCenter
+
+                                            Button {
+                                                id: volumeIconBtn
+                                                flat: true
+                                                implicitWidth: 44
+                                                implicitHeight: 44
+                                                padding: 0
+                                                leftPadding: 0
+                                                rightPadding: 0
+                                                topPadding: 0
+                                                bottomPadding: 0
+                                                property color iconColor: volumeHoverArea.containsMouse || volumeIconBtn.hovered ? "#60a5fa" : "#94a3b8"
+                                                
+                                                background: Rectangle {
+                                                    color: volumeIconBtn.pressed ? Qt.rgba(255, 255, 255, 0.1) : (volumeIconBtn.hovered ? Qt.rgba(255, 255, 255, 0.05) : "transparent")
+                                                    radius: 18
+                                                }
+                                                
+                                                contentItem: Canvas {
+                                                    id: volumeIconCanvas
+                                                    onWidthChanged: requestPaint()
+                                                    onHeightChanged: requestPaint()
+                                                    onPaint: {
+                                                        var ctx = getContext("2d");
+                                                        ctx.reset();
+                                                        ctx.fillStyle = volumeIconBtn.iconColor;
+                                                        ctx.strokeStyle = volumeIconBtn.iconColor;
+                                                        ctx.lineWidth = 2.0;
+                                                        ctx.lineCap = "round";
+                                                        
+                                                        var w = width;
+                                                        var h = height;
+                                                        var cx = w / 2;
+                                                        var cy = h / 2;
+                                                        var left = cx - 10;
+                                                        var speakerRight = left + 9;
+                                                        
+                                                        // Speaker body
+                                                        ctx.beginPath();
+                                                        ctx.moveTo(left, cy - 4.5);
+                                                        ctx.lineTo(left + 4, cy - 4.5);
+                                                        ctx.lineTo(speakerRight, cy - 9);
+                                                        ctx.lineTo(speakerRight, cy + 9);
+                                                        ctx.lineTo(left + 4, cy + 4.5);
+                                                        ctx.lineTo(left, cy + 4.5);
+                                                        ctx.closePath();
+                                                        ctx.fill();
+                                                        
+                                                        // Sound waves
+                                                        var vol = isMuted ? 0 : volumeSlider.value
+                                                        if (vol > 0) {
+                                                            ctx.beginPath();
+                                                            ctx.arc(speakerRight, cy, 6, -Math.PI/4, Math.PI/4, false);
+                                                            ctx.stroke();
+                                                        }
+                                                        if (vol > 50) {
+                                                            ctx.beginPath();
+                                                            ctx.arc(speakerRight, cy, 11, -Math.PI/4, Math.PI/4, false);
+                                                            ctx.stroke();
+                                                        }
+                                                    }
+                                                    
+                                                    Connections {
+                                                        target: volumeSlider
+                                                        function onValueChanged() { volumeIconCanvas.requestPaint(); }
+                                                    }
+                                                    Connections {
+                                                        target: volumeIconBtn
+                                                        function onIconColorChanged() { volumeIconCanvas.requestPaint(); }
+                                                    }
+                                                    Connections {
+                                                        target: window
+                                                        function onIsMutedChanged() { volumeIconCanvas.requestPaint(); }
+                                                    }
+                                                }
+                                                
+                                                onClicked: {
+                                                    toggleMute()
+                                                }
+                                            }
+
+                                            Rectangle {
+                                                id: sliderContainer
+                                                property int targetWidth: volumeHoverArea.containsMouse ? (bottomButtonsBar.isNarrow ? 60 : 100) : 0
+                                                Layout.preferredWidth: targetWidth
+                                                Layout.preferredHeight: 40
+                                                width: targetWidth
+                                                height: 40
+                                                color: "transparent"
+                                                clip: true
+                                                Behavior on targetWidth { NumberAnimation { duration: 250; easing.type: Easing.InOutQuad } }
+
+                                                Slider {
+                                                    id: volumeSlider
+                                                    anchors.fill: parent
+                                                    anchors.leftMargin: 4
+                                                    anchors.rightMargin: 4
+                                                    implicitHeight: 24
+                                                    leftPadding: 0
+                                                    rightPadding: 0
+                                                    topPadding: 0
+                                                    bottomPadding: 0
+                                                    from: 0
+                                                    to: 100
+                                                    value: controller.loadVolume()
+                                                    
+                                                    background: Rectangle {
+                                                        x: volumeSlider.leftPadding
+                                                        y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
+                                                        width: volumeSlider.availableWidth
+                                                        height: 4
+                                                        radius: 2
+                                                        color: "#475569"
+                                                        Rectangle {
+                                                            width: volumeSlider.visualPosition * parent.width
+                                                            height: parent.height
+                                                            color: "#3b82f6"
+                                                            radius: 2
+                                                        }
+                                                    }
+                                                    handle: Rectangle {
+                                                        x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
+                                                        y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
+                                                        width: 10
+                                                        height: 10
+                                                        radius: 5
+                                                        color: "white"
+                                                        border.color: "#3b82f6"
+                                                        border.width: 1
+                                                    }
+                                                    
+                                                    onValueChanged: {
+                                                        controller.saveVolume(value)
+                                                        if (value > 0 && isMuted) {
+                                                            isMuted = false
+                                                        }
+                                                        volumeIconCanvas.requestPaint()
+                                                    }
+                                                }
+                                            }
+
+                                            Text {
+                                                text: Math.round(volumeSlider.value) + "%"
+                                                color: "#94a3b8"
+                                                font.pixelSize: 13
+                                                font.bold: true
+                                                Layout.alignment: Qt.AlignVCenter
+                                            }
+                                        }
+                                    }
+
+                                    // Fullscreen Toggle Button
+                                    Button {
+                                        id: fullscreenBtn
+                                        flat: true
+                                        implicitWidth: 44
+                                        implicitHeight: 44
+                                        padding: 0
+                                        leftPadding: 0
+                                        rightPadding: 0
+                                        topPadding: 0
+                                        bottomPadding: 0
+                                        
+                                        background: Rectangle {
+                                            color: fullscreenBtn.pressed ? Qt.rgba(255, 255, 255, 0.1) : (fullscreenBtn.hovered ? Qt.rgba(255, 255, 255, 0.05) : "transparent")
+                                            radius: 18
+                                        }
+                                        
+                                        contentItem: Canvas {
+                                            id: fullscreenIconCanvas
+                                            onWidthChanged: requestPaint()
+                                            onHeightChanged: requestPaint()
+                                            onPaint: {
+                                                var ctx = getContext("2d");
+                                                ctx.reset();
+                                                ctx.strokeStyle = fullscreenBtn.hovered ? "#60a5fa" : "#94a3b8";
+                                                ctx.lineWidth = 2.2;
+                                                ctx.lineCap = "round";
+                                                ctx.lineJoin = "round";
+                                                
+                                                var cx = width / 2;
+                                                var cy = height / 2;
+                                                var isFS = window.visibility === Window.FullScreen;
+                                                
+                                                if (!isFS) {
+                                                    // Outward corners
+                                                    // Top-left
+                                                    ctx.beginPath();
+                                                    ctx.moveTo(cx - 4, cy - 9);
+                                                    ctx.lineTo(cx - 9, cy - 9);
+                                                    ctx.lineTo(cx - 9, cy - 4);
+                                                    ctx.stroke();
+                                                    // Top-right
+                                                    ctx.beginPath();
+                                                    ctx.moveTo(cx + 4, cy - 9);
+                                                    ctx.lineTo(cx + 9, cy - 9);
+                                                    ctx.lineTo(cx + 9, cy - 4);
+                                                    ctx.stroke();
+                                                    // Bottom-left
+                                                    ctx.beginPath();
+                                                    ctx.moveTo(cx - 4, cy + 9);
+                                                    ctx.lineTo(cx - 9, cy + 9);
+                                                    ctx.lineTo(cx - 9, cy + 4);
+                                                    ctx.stroke();
+                                                    // Bottom-right
+                                                    ctx.beginPath();
+                                                    ctx.moveTo(cx + 4, cy + 9);
+                                                    ctx.lineTo(cx + 9, cy + 9);
+                                                    ctx.lineTo(cx + 9, cy + 4);
+                                                    ctx.stroke();
+                                                } else {
+                                                    // Inward corners
+                                                    // Top-left
+                                                    ctx.beginPath();
+                                                    ctx.moveTo(cx - 9, cy - 4);
+                                                    ctx.lineTo(cx - 4, cy - 4);
+                                                    ctx.lineTo(cx - 4, cy - 9);
+                                                    ctx.stroke();
+                                                    // Top-right
+                                                    ctx.beginPath();
+                                                    ctx.moveTo(cx + 9, cy - 4);
+                                                    ctx.lineTo(cx + 4, cy - 4);
+                                                    ctx.lineTo(cx + 4, cy - 9);
+                                                    ctx.stroke();
+                                                    // Bottom-left
+                                                    ctx.beginPath();
+                                                    ctx.moveTo(cx - 9, cy + 4);
+                                                    ctx.lineTo(cx - 4, cy + 4);
+                                                    ctx.lineTo(cx - 4, cy + 9);
+                                                    ctx.stroke();
+                                                    // Bottom-right
+                                                    ctx.beginPath();
+                                                    ctx.moveTo(cx + 9, cy + 4);
+                                                    ctx.lineTo(cx + 4, cy + 4);
+                                                    ctx.lineTo(cx + 4, cy + 9);
+                                                    ctx.stroke();
+                                                }
+                                            }
+                                            
+                                            Connections {
+                                                target: window
+                                                function onVisibilityChanged() { fullscreenIconCanvas.requestPaint(); }
+                                            }
+                                            Connections {
+                                                target: fullscreenBtn
+                                                function onHoveredChanged() { fullscreenIconCanvas.requestPaint(); }
+                                            }
+                                        }
+                                        
+                                        onClicked: {
+                                            toggleFullscreen()
+                                        }
+                                    }
                                 }
                             }
-                        }
 
                         // Message Area (inside layout card for clean contrast layout)
                         Text {
@@ -2967,372 +3390,6 @@ ApplicationWindow {
                             font.pixelSize: 12
                             font.bold: true
                             visible: text !== ""
-                        }
-                    }
-                }
-
-                // Right controls layout (always parented to bottomRowAnchorItem at bottom right)
-                RowLayout {
-                    id: rightControlsLayout
-                    parent: bottomRowAnchorItem
-                    spacing: bottomButtonsBar.isNarrow ? 8 : 12
-                    z: 1
-                    
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    
-                    opacity: (window.visibility === Window.FullScreen) ? (controlsVisible ? 1.0 : 0.0) : 1.0
-                    Behavior on opacity {
-                        NumberAnimation { duration: 300 }
-                    }
-                    visible: opacity > 0.0
-                    
-                    // Loop Toggle (Flat circle with Canvas vector icon)
-                    Button {
-                        id: loopToggleBtn
-                        flat: true
-                        implicitWidth: 44
-                        implicitHeight: 44
-                        padding: 0
-                        leftPadding: 0
-                        rightPadding: 0
-                        topPadding: 0
-                        bottomPadding: 0
-                        property bool looping: controller.loadLoop()
-                        property color iconColor: looping ? "#60a5fa" : (loopToggleBtn.hovered ? "#60a5fa" : "#94a3b8")
-                        
-                        background: Rectangle {
-                            color: loopToggleBtn.pressed ? Qt.rgba(255, 255, 255, 0.1) : (loopToggleBtn.hovered ? Qt.rgba(255, 255, 255, 0.05) : "transparent")
-                            radius: 18
-                        }
-                        
-                        contentItem: Canvas {
-                            id: loopIconCanvas
-                            onWidthChanged: requestPaint()
-                            onHeightChanged: requestPaint()
-                            onPaint: {
-                                var ctx = getContext("2d");
-                                ctx.reset();
-                                ctx.strokeStyle = loopToggleBtn.iconColor;
-                                ctx.lineWidth = 2.2;
-                                ctx.lineCap = "round";
-                                ctx.lineJoin = "round";
-                                
-                                var w = width;
-                                var h = height;
-                                var cx = w / 2;
-                                var cy = h / 2;
-                                
-                                // Path 1 (top half, left arrow)
-                                ctx.beginPath();
-                                ctx.moveTo(cx + 7, cy - 5);
-                                ctx.lineTo(cx - 4, cy - 5);
-                                ctx.arcTo(cx - 9, cy - 5, cx - 9, cy, 5);
-                                ctx.lineTo(cx - 9, cy + 3);
-                                ctx.stroke();
-                                
-                                // Arrow head (pointing left)
-                                ctx.beginPath();
-                                ctx.moveTo(cx - 1, cy - 9);
-                                ctx.lineTo(cx - 4, cy - 5);
-                                ctx.lineTo(cx - 1, cy - 1);
-                                ctx.stroke();
-
-                                // Path 2 (bottom half, right arrow)
-                                ctx.beginPath();
-                                ctx.moveTo(cx - 7, cy + 5);
-                                ctx.lineTo(cx + 4, cy + 5);
-                                ctx.arcTo(cx + 9, cy + 5, cx + 9, cy, 5);
-                                ctx.lineTo(cx + 9, cy - 3);
-                                ctx.stroke();
-                                
-                                // Arrow head (pointing right)
-                                ctx.beginPath();
-                                ctx.moveTo(cx + 1, cy + 1);
-                                ctx.lineTo(cx + 4, cy + 5);
-                                ctx.lineTo(cx + 1, cy + 9);
-                                ctx.stroke();
-                            }
-                            
-                            Connections {
-                                target: loopToggleBtn
-                                function onLoopingChanged() { loopIconCanvas.requestPaint(); }
-                                function onHoveredChanged() { loopIconCanvas.requestPaint(); }
-                                function onIconColorChanged() { loopIconCanvas.requestPaint(); }
-                            }
-                        }
-                        
-                        onClicked: {
-                            looping = !looping
-                            controller.saveLoop(looping)
-                            showMessage("Playlist looping: " + (looping ? "On" : "Off"))
-                        }
-                    }
-
-                    // Hoverable Volume Control (Custom Speaker + Precise Slider margins)
-                    MouseArea {
-                        id: volumeHoverArea
-                        Layout.preferredWidth: volumeLayout.implicitWidth
-                        Layout.preferredHeight: 44
-                        width: Layout.preferredWidth
-                        height: 44
-                        hoverEnabled: true
-
-                        RowLayout {
-                            id: volumeLayout
-                            spacing: 8
-                            anchors.verticalCenter: parent.verticalCenter
-
-                            Button {
-                                id: volumeIconBtn
-                                flat: true
-                                implicitWidth: 44
-                                implicitHeight: 44
-                                padding: 0
-                                leftPadding: 0
-                                rightPadding: 0
-                                topPadding: 0
-                                bottomPadding: 0
-                                property color iconColor: volumeHoverArea.containsMouse || volumeIconBtn.hovered ? "#60a5fa" : "#94a3b8"
-                                
-                                background: Rectangle {
-                                    color: volumeIconBtn.pressed ? Qt.rgba(255, 255, 255, 0.1) : (volumeIconBtn.hovered ? Qt.rgba(255, 255, 255, 0.05) : "transparent")
-                                    radius: 18
-                                }
-                                
-                                contentItem: Canvas {
-                                    id: volumeIconCanvas
-                                    onWidthChanged: requestPaint()
-                                    onHeightChanged: requestPaint()
-                                    onPaint: {
-                                        var ctx = getContext("2d");
-                                        ctx.reset();
-                                        ctx.fillStyle = volumeIconBtn.iconColor;
-                                        ctx.strokeStyle = volumeIconBtn.iconColor;
-                                        ctx.lineWidth = 2.0;
-                                        ctx.lineCap = "round";
-                                        
-                                        var w = width;
-                                        var h = height;
-                                        var cx = w / 2;
-                                        var cy = h / 2;
-                                        var left = cx - 10;
-                                        var speakerRight = left + 9;
-                                        
-                                        // Speaker body
-                                        ctx.beginPath();
-                                        ctx.moveTo(left, cy - 4.5);
-                                        ctx.lineTo(left + 4, cy - 4.5);
-                                        ctx.lineTo(speakerRight, cy - 9);
-                                        ctx.lineTo(speakerRight, cy + 9);
-                                        ctx.lineTo(left + 4, cy + 4.5);
-                                        ctx.lineTo(left, cy + 4.5);
-                                        ctx.closePath();
-                                        ctx.fill();
-                                        
-                                        // Sound waves
-                                        var vol = isMuted ? 0 : volumeSlider.value
-                                        if (vol > 0) {
-                                            ctx.beginPath();
-                                            ctx.arc(speakerRight, cy, 6, -Math.PI/4, Math.PI/4, false);
-                                            ctx.stroke();
-                                        }
-                                        if (vol > 50) {
-                                            ctx.beginPath();
-                                            ctx.arc(speakerRight, cy, 11, -Math.PI/4, Math.PI/4, false);
-                                            ctx.stroke();
-                                        }
-                                    }
-                                    
-                                    Connections {
-                                        target: volumeSlider
-                                        function onValueChanged() { volumeIconCanvas.requestPaint(); }
-                                    }
-                                    Connections {
-                                        target: volumeIconBtn
-                                        function onIconColorChanged() { volumeIconCanvas.requestPaint(); }
-                                    }
-                                    Connections {
-                                        target: window
-                                        function onIsMutedChanged() { volumeIconCanvas.requestPaint(); }
-                                    }
-                                }
-                                
-                                onClicked: {
-                                    toggleMute()
-                                }
-                            }
-
-                            Rectangle {
-                                id: sliderContainer
-                                property int targetWidth: volumeHoverArea.containsMouse ? 100 : 0
-                                Layout.preferredWidth: targetWidth
-                                Layout.preferredHeight: 40
-                                width: targetWidth
-                                height: 40
-                                color: "transparent"
-                                clip: true
-                                Behavior on targetWidth { NumberAnimation { duration: 250; easing.type: Easing.InOutQuad } }
-
-                                Slider {
-                                    id: volumeSlider
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 4
-                                    anchors.rightMargin: 4
-                                    implicitHeight: 24
-                                    leftPadding: 0
-                                    rightPadding: 0
-                                    topPadding: 0
-                                    bottomPadding: 0
-                                    from: 0
-                                    to: 100
-                                    value: controller.loadVolume()
-                                    
-                                    background: Rectangle {
-                                        x: volumeSlider.leftPadding
-                                        y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
-                                        width: volumeSlider.availableWidth
-                                        height: 4
-                                        radius: 2
-                                        color: "#475569"
-                                        Rectangle {
-                                            width: volumeSlider.visualPosition * parent.width
-                                            height: parent.height
-                                            color: "#3b82f6"
-                                            radius: 2
-                                        }
-                                    }
-                                    handle: Rectangle {
-                                        x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
-                                        y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
-                                        width: 10
-                                        height: 10
-                                        radius: 5
-                                        color: "white"
-                                        border.color: "#3b82f6"
-                                        border.width: 1
-                                    }
-                                    
-                                    onValueChanged: {
-                                        controller.saveVolume(value)
-                                        if (value > 0 && isMuted) {
-                                            isMuted = false
-                                        }
-                                        volumeIconCanvas.requestPaint()
-                                    }
-                                }
-                            }
-
-                            Text {
-                                text: Math.round(volumeSlider.value) + "%"
-                                color: "#94a3b8"
-                                font.pixelSize: 13
-                                font.bold: true
-                                Layout.alignment: Qt.AlignVCenter
-                            }
-                        }
-                    }
-
-                    // Fullscreen Toggle Button
-                    Button {
-                        id: fullscreenBtn
-                        flat: true
-                        implicitWidth: 44
-                        implicitHeight: 44
-                        padding: 0
-                        leftPadding: 0
-                        rightPadding: 0
-                        topPadding: 0
-                        bottomPadding: 0
-                        
-                        background: Rectangle {
-                            color: fullscreenBtn.pressed ? Qt.rgba(255, 255, 255, 0.1) : (fullscreenBtn.hovered ? Qt.rgba(255, 255, 255, 0.05) : "transparent")
-                            radius: 18
-                        }
-                        
-                        contentItem: Canvas {
-                            id: fullscreenIconCanvas
-                            onWidthChanged: requestPaint()
-                            onHeightChanged: requestPaint()
-                            onPaint: {
-                                var ctx = getContext("2d");
-                                ctx.reset();
-                                ctx.strokeStyle = fullscreenBtn.hovered ? "#60a5fa" : "#94a3b8";
-                                ctx.lineWidth = 2.2;
-                                ctx.lineCap = "round";
-                                ctx.lineJoin = "round";
-                                
-                                var cx = width / 2;
-                                var cy = height / 2;
-                                var isFS = window.visibility === Window.FullScreen;
-                                
-                                if (!isFS) {
-                                    // Outward corners
-                                    // Top-left
-                                    ctx.beginPath();
-                                    ctx.moveTo(cx - 4, cy - 9);
-                                    ctx.lineTo(cx - 9, cy - 9);
-                                    ctx.lineTo(cx - 9, cy - 4);
-                                    ctx.stroke();
-                                    // Top-right
-                                    ctx.beginPath();
-                                    ctx.moveTo(cx + 4, cy - 9);
-                                    ctx.lineTo(cx + 9, cy - 9);
-                                    ctx.lineTo(cx + 9, cy - 4);
-                                    ctx.stroke();
-                                    // Bottom-left
-                                    ctx.beginPath();
-                                    ctx.moveTo(cx - 4, cy + 9);
-                                    ctx.lineTo(cx - 9, cy + 9);
-                                    ctx.lineTo(cx - 9, cy + 4);
-                                    ctx.stroke();
-                                    // Bottom-right
-                                    ctx.beginPath();
-                                    ctx.moveTo(cx + 4, cy + 9);
-                                    ctx.lineTo(cx + 9, cy + 9);
-                                    ctx.lineTo(cx + 9, cy + 4);
-                                    ctx.stroke();
-                                } else {
-                                    // Inward corners
-                                    // Top-left
-                                    ctx.beginPath();
-                                    ctx.moveTo(cx - 9, cy - 4);
-                                    ctx.lineTo(cx - 4, cy - 4);
-                                    ctx.lineTo(cx - 4, cy - 9);
-                                    ctx.stroke();
-                                    // Top-right
-                                    ctx.beginPath();
-                                    ctx.moveTo(cx + 9, cy - 4);
-                                    ctx.lineTo(cx + 4, cy - 4);
-                                    ctx.lineTo(cx + 4, cy - 9);
-                                    ctx.stroke();
-                                    // Bottom-left
-                                    ctx.beginPath();
-                                    ctx.moveTo(cx - 9, cy + 4);
-                                    ctx.lineTo(cx - 4, cy + 4);
-                                    ctx.lineTo(cx - 4, cy + 9);
-                                    ctx.stroke();
-                                    // Bottom-right
-                                    ctx.beginPath();
-                                    ctx.moveTo(cx + 9, cy + 4);
-                                    ctx.lineTo(cx + 4, cy + 4);
-                                    ctx.lineTo(cx + 4, cy + 9);
-                                    ctx.stroke();
-                                }
-                            }
-                            
-                            Connections {
-                                target: window
-                                function onVisibilityChanged() { fullscreenIconCanvas.requestPaint(); }
-                            }
-                            Connections {
-                                target: fullscreenBtn
-                                function onHoveredChanged() { fullscreenIconCanvas.requestPaint(); }
-                            }
-                        }
-                        
-                        onClicked: {
-                            toggleFullscreen()
                         }
                     }
                 }
@@ -3597,6 +3654,8 @@ ApplicationWindow {
                 textLines.push(lines[j]);
             }
             var textStr = textLines.join("\n").trim();
+            textStr = textStr.replace(/\{[^\}]*\}/g, "");
+            textStr = textStr.replace(/\\N/g, "\n").replace(/\\n/g, "\n").replace(/\\h/g, " ");
             textStr = textStr.replace(/<[^>]*>/g, "");
             
             chunks.push({
@@ -3751,6 +3810,8 @@ ApplicationWindow {
             subtitlePickerVisible = false
             subtitleDetectionDone = false  // allow detectSubtitles to run for this file
             activeSubtitleUrl = ""
+            activeEmbeddedTrackIndex = -1
+            player.activeSubtitleTrack = -1
 
             currentTrackIndex = index
 
@@ -4047,24 +4108,25 @@ ApplicationWindow {
                         anchors.fill: parent
                         anchors.margins: 4
                         radius: 8
-                        color: (subtitleChunks.length === 0 && player.activeSubtitleTrack === -1)
+                        color: (subtitleChunks.length === 0 && activeEmbeddedTrackIndex === -1)
                                ? "#1e3a5f" : "transparent"
 
                         MouseArea {
                             anchors.fill: parent
                             hoverEnabled: true
                             onEntered: parent.color = Qt.binding(function() {
-                                return (subtitleChunks.length === 0 && player.activeSubtitleTrack === -1)
+                                return (subtitleChunks.length === 0 && activeEmbeddedTrackIndex === -1)
                                        ? "#1e3a5f" : "#1e293b"
                             })
                             onExited: parent.color = Qt.binding(function() {
-                                return (subtitleChunks.length === 0 && player.activeSubtitleTrack === -1)
+                                return (subtitleChunks.length === 0 && activeEmbeddedTrackIndex === -1)
                                        ? "#1e3a5f" : "transparent"
                             })
                             onClicked: {
                                 subtitleChunks = []
                                 activeSubtitleText = ""
                                 activeSubtitleUrl = ""
+                                activeEmbeddedTrackIndex = -1
                                 player.activeSubtitleTrack = -1
                                 subtitlePickerPopup.close()
                                 showMessage("Subtitles off")
@@ -4098,8 +4160,8 @@ ApplicationWindow {
                     height: 50
 
                     property bool isActive: modelData.isEmbedded
-                        ? (player.activeSubtitleTrack === modelData.embeddedIndex)
-                        : (activeSubtitleUrl === modelData.url.toString() && player.activeSubtitleTrack === -1)
+                        ? (activeEmbeddedTrackIndex === modelData.embeddedIndex)
+                        : (activeSubtitleUrl === modelData.url.toString() && activeEmbeddedTrackIndex === -1)
 
                     Rectangle {
                         anchors.fill: parent
@@ -4116,14 +4178,17 @@ ApplicationWindow {
                             onClicked: {
                                 var opt = availableSubtitles[index]
                                 if (opt.isEmbedded) {
-                                    // Activate embedded track — Qt renders it natively
-                                    subtitleChunks = []
-                                    activeSubtitleText = ""
-                                    activeSubtitleUrl = ""
-                                    player.activeSubtitleTrack = opt.embeddedIndex
-                                    showMessage("Embedded subtitle activated")
+                                    player.activeSubtitleTrack = -1
+                                    var mediaUrl = playlist[currentTrackIndex].url.toString()
+                                    var tempUrl = controller.extractEmbeddedSubtitle(mediaUrl, opt.embeddedIndex)
+                                    if (tempUrl !== "") {
+                                        activeEmbeddedTrackIndex = opt.embeddedIndex
+                                        loadSubtitleFile(tempUrl)
+                                    } else {
+                                        showMessage("Failed to extract embedded subtitles")
+                                    }
                                 } else {
-                                    // Load external .srt / .vtt into our overlay
+                                    activeEmbeddedTrackIndex = -1
                                     player.activeSubtitleTrack = -1
                                     loadSubtitleFile(opt.url)
                                 }
