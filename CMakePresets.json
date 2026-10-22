@@ -1,0 +1,52 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "dev",
+      "displayName": "Debug application and tests",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_TESTING": "ON"
+      }
+    },
+    {
+      "name": "tests",
+      "displayName": "Regression tests without Whisper downloads",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/test-only",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_TESTING": "ON",
+        "MAPL_BUILD_APP": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev"
+    },
+    {
+      "name": "tests",
+      "configurePreset": "tests"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "tests",
+      "configurePreset": "tests",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

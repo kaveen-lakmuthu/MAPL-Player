@@ -1,13 +1,5 @@
-# Dependency directories
-**/node_modules/
-/jspm_packages/
-
 # Native C++ build outputs
-/native/build/
-
-# Electron packaging / compilation outputs
-/electron/dist/
-/electron/out/
+/build/
 
 # Log files and database locks
 *.log
