@@ -1,6 +1,6 @@
 # MAPL Player
 
-**MAPL Player** is a modern, native desktop media player for Linux, built on **C++ and Qt6/QML**. It plays virtually every video and audio format, generates subtitles offline using a local AI model, and ships with a premium dark UI with hardware-accelerated timeline previews, a collapsible sidebar, and intelligent subtitle detection.
+**MAPL Player** is a modern, native desktop media player for Linux, built on **C++ and Qt6/QML**. It plays virtually every video and audio format, generates subtitles offline using a local AI model, and ships with a dark desktop UI with compact video controls, a dedicated ambient Audio view, expandable lyrics and playlist panels, and hardware-accelerated timeline previews.
 
 > **Alpha testing is underway.** Use `scripts/install.sh` to install for your user on Linux.
 
@@ -79,17 +79,18 @@ See [`docs/native-guide.md`](docs/native-guide.md) for the full build guide, har
 - **Audio & playback controls** — multilingual audio tracks, 0.25×–3× speed and signed audio delay
 - **Linux desktop media controls** — MPRIS playback, seeking, volume and track metadata
 - **Resume playback** — remembers unfinished files and offers Resume or Start from beginning when reopened
-- **Recent files** — reopen the latest 20 files from the sidebar, with full paths and a clear-list action
+- **Recent files** — reopen the latest 20 files from the File menu, with full paths and a clear-list action
 - **Broad format support** — MP4, MKV, AVI, MOV, WEBM, FLV, WMV, 3GP, MPEG + MP3, FLAC, WAV, OGG, M4A, AAC, OPUS, WMA, AIFF, and more
 - **Smart subtitle detection** — auto-detects external `.srt`/`.vtt` files and embedded tracks with a language picker
 - **Whisper model manager** — installed sizes, progress, cancellation and deletion, with SHA-256 checks and atomic downloads
 - **Offline AI subtitle generation** — powered by `whisper.cpp` (OpenAI Whisper) running locally, with cancellation and cleanup
 - **Responsive background jobs** — asynchronous chapter scanning and embedded subtitle extraction
 - **Hardware-accelerated timeline previews** — VA-API/NVDEC-accelerated sprite sheet generation
-- **Dynamic ambient UI** — extracts dominant color from the playing video and adapts the whole background
+- **Dedicated Audio view** — prominent artwork, ambient lighting, live lyrics, an Up next summary and larger playback controls
+- **Dynamic ambient UI** — broad lighting in Audio and restrained toolbar/control tinting in Video, with strength and reduced-motion options
 - **Interactive transcript panel** — click any subtitle line to seek to that moment
 - **XSPF playlist support** — load and queue full playlists
-- **Collapsible sidebar** — auto-hides during video playback for maximum screen real estate
+- **Expandable panels** — lyrics and playlists can sit beside the media or expand into full views
 
 ---
 

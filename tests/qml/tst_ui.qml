@@ -563,4 +563,95 @@ TestCase {
         verify(appWindow.modalDialogOpen);
     }
 
+    function test_audioHasItsOwnPresentationAndLargerControls() {
+        appWindow.loadMediaFile(TestPaths.audioUrl);
+        tryVerify(function () { return appWindow.mediaPlayer.seekable; });
+        appWindow.mediaPlayer.pause();
+        appWindow.playbackOptions.rate = 1.25;
+        appWindow.volumeSlider.value = 45;
+        appWindow.ambientEnabled = true;
+        appWindow.reduceMotion = false;
+        var source = appWindow.mediaPlayer.source.toString();
+        var output = appWindow.videoOutput;
+        appWindow.showMediaView("video");
+        wait(30);
+        var play = findChild(appWindow, "playPauseButton");
+        var videoButtonHeight = play.height;
+        appWindow.showMediaView("audio");
+        wait(30);
+        verify(findChild(appWindow, "audioPresentation").visible);
+        verify(findChild(appWindow, "audioArtwork").width >= 240);
+        verify(findChild(appWindow, "audioAmbientLight").visible);
+        verify(play.height >= 56 && play.height > videoButtonHeight);
+        mouseClick(findChild(appWindow, "audioPlaylistButton"));
+        compare(appWindow.panelView, "playlist");
+        verify(!appWindow.panelExpanded);
+        verify(findChild(appWindow, "audioPresentation").visible);
+        mouseClick(findChild(appWindow, "closePanelButton"));
+        compare(appWindow.mediaPlayer.source.toString(), source);
+        compare(appWindow.videoOutput, output);
+        compare(appWindow.mediaPlayer.playbackState, MediaPlayer.PausedState);
+        compare(appWindow.playbackOptions.rate, 1.25);
+        compare(appWindow.volumeSlider.value, 45);
+        appWindow.showMediaView("video");
+        wait(30);
+        compare(play.height, videoButtonHeight);
+        compare(findChild(appWindow, "playerSurface").height, appWindow.height - 112);
+    }
+    function test_audioLayoutFitsSmallWindowsAndSidePanels_data() {
+        return [{tag: "empty", loaded: false}, {tag: "playing", loaded: true}];
+    }
+    function test_audioLayoutFitsSmallWindowsAndSidePanels(data) {
+        if (data.loaded) {
+            appWindow.loadMediaFile(TestPaths.audioUrl);
+            tryVerify(function () { return appWindow.mediaPlayer.seekable; });
+            appWindow.mediaPlayer.pause();
+            appWindow.playlist = [{url: TestPaths.audioUrl, title: "An intentionally long track title that must fit beside the artwork", artist: "An artist with a long name"}];
+            appWindow.activeSubtitleText = "A long live lyric line which should wrap inside its card while all playback controls remain usable.";
+        }
+        appWindow.availableSubtitles = [{label: "English", url: "file:///movie.srt", isEmbedded: false, embeddedIndex: -1}];
+        appWindow.mediaChapters = [{time: 0, title: "Opening"}];
+        for (var size of [[640, 420], [640, 800], [1120, 720]]) {
+            appWindow.width = size[0];
+            appWindow.height = size[1];
+            appWindow.showMediaView("audio");
+            for (var panel of ["", "lyrics", "playlist"]) {
+                appWindow.closePanel();
+                if (panel !== "") appWindow.togglePanel(panel);
+                wait(30);
+                var surface = findChild(appWindow, "playerSurface");
+                for (var name of ["audioArtwork", "audioLiveLyrics", "audioUpNext", "audioPlaylistButton"]) {
+                    var item = findChild(appWindow, name);
+                    verify(item.visible, name);
+                    var point = item.mapToItem(surface, 0, 0);
+                    verify(point.x >= -1 && point.y >= -1, name + " starts outside the audio view");
+                    verify(point.x + item.width <= surface.width + 1, name + " overflows the audio width");
+                    verify(point.y + item.height <= surface.height + 1, name + " overflows the audio height");
+                }
+                for (var control of [findChild(appWindow, "playPauseButton"), appWindow.seekSlider, appWindow.volumeSlider]) {
+                    var position = control.mapToItem(appWindow.contentItem, 0, 0);
+                    verify(position.x >= 0 && position.y >= 0);
+                    verify(position.x + control.width <= appWindow.width);
+                    verify(position.y + control.height <= appWindow.height);
+                }
+            }
+        }
+    }
+    function test_audioAmbientHonorsAppearancePreferences() {
+        appWindow.showMediaView("audio");
+        appWindow.ambientEnabled = true;
+        appWindow.reduceMotion = false;
+        var light = findChild(appWindow, "audioAmbientLight");
+        verify(light.visible);
+        appWindow.ambientEnabled = false;
+        verify(!light.visible);
+        appWindow.ambientEnabled = true;
+        appWindow.reduceMotion = true;
+        verify(!light.visible);
+        appWindow.reduceMotion = false;
+        appWindow.showMediaView("video");
+        verify(!light.visible);
+        compare(findChild(appWindow, "playerSurface").color, Qt.color("#000000"));
+    }
+
 }

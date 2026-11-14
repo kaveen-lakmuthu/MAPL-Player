@@ -9,6 +9,8 @@ Basic.Button {
     property string hint: text
     property bool selected: false
     property bool prominent: false
+    property real iconSize: 18
+    property real cornerRadius: 5
     implicitWidth: text === "" ? 32 : contentItem.implicitWidth + 18
     implicitHeight: 30
     padding: 6
@@ -23,6 +25,8 @@ Basic.Button {
         PlayerIcon {
             visible: root.glyph !== ""
             name: root.glyph
+            Layout.preferredWidth: root.iconSize
+            Layout.preferredHeight: root.iconSize
             Layout.alignment: Qt.AlignCenter
         }
         Text {
@@ -37,7 +41,7 @@ Basic.Button {
         }
     }
     background: Rectangle {
-        radius: 5
+        radius: root.cornerRadius
         color: root.down ? "#496278" : root.hovered ? "#3a5064" : root.selected || root.prominent ? "#355c79" : "#293947"
         border.width: root.visualFocus ? 2 : 0
         border.color: "#9dcbff"

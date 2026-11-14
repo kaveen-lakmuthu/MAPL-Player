@@ -5,13 +5,14 @@ Rectangle {
     id: root
     required property var app
     property bool overlay: false
+    readonly property bool audioPresentation: app.mediaView === "audio" && !app.panelExpanded
     property alias seekSlider: timeline.slider
     property alias volumeSlider: transport.volumeSlider
     readonly property bool controlsHovered: hover.hovered
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.bottom: parent.bottom
-    height: 72
+    height: audioPresentation ? 116 : 72
     color: app.chromeColor
     z: 100
     opacity: overlay && !app.controlsVisible ? 0 : 1
@@ -20,12 +21,12 @@ Rectangle {
     HoverHandler { id: hover }
     ColumnLayout {
         anchors.fill: parent
-        anchors.leftMargin: 12
-        anchors.rightMargin: 12
-        anchors.topMargin: 2
-        anchors.bottomMargin: 6
-        spacing: 0
+        anchors.leftMargin: root.audioPresentation ? Math.max(20, (root.width - 1000) / 2) : 12
+        anchors.rightMargin: anchors.leftMargin
+        anchors.topMargin: root.audioPresentation ? 8 : 2
+        anchors.bottomMargin: root.audioPresentation ? 10 : 6
+        spacing: root.audioPresentation ? 8 : 0
         Timeline { id: timeline; app: root.app; Layout.fillWidth: true }
-        TransportControls { id: transport; app: root.app; Layout.fillWidth: true }
+        TransportControls { id: transport; app: root.app; spacious: root.audioPresentation; Layout.fillWidth: true }
     }
 }
