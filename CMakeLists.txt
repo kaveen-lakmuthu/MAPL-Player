@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(MAPLPlayerNative VERSION 1.0.0 LANGUAGES CXX C)
+project(MAPLPlayerNative VERSION 2.0.1 LANGUAGES CXX C)
+set(MAPL_VERSION_STRING "${PROJECT_VERSION}-alpha")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -68,6 +69,7 @@ if(MAPL_BUILD_APP)
 
     # Define the native application executable
     qt_add_executable(mapl-player ${SOURCES})
+    target_compile_definitions(mapl-player PRIVATE MAPL_APP_VERSION="${MAPL_VERSION_STRING}")
     target_include_directories(mapl-player PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
     # Link libraries
@@ -128,6 +130,7 @@ if(MAPL_BUILD_APP)
     endforeach()
     qt_add_qml_module(mapl-player
         URI MAPLPlayerNative
+        # The QML import API version is independent of the application release.
         VERSION 1.0
         RESOURCE_PREFIX "/"
         QML_FILES ${QML_SOURCES}

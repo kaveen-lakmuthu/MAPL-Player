@@ -2,7 +2,9 @@
 
 **MAPL Player** is a modern, native desktop media player for Linux, built on **C++ and Qt6/QML**. It plays virtually every video and audio format, generates subtitles offline using a local AI model, and ships with a dark desktop UI with compact video controls, a dedicated ambient Audio view, expandable lyrics and playlist panels, and hardware-accelerated timeline previews.
 
-> **Alpha testing is underway.** Use `scripts/install.sh` to install for your user on Linux.
+> **Version 2.0.1-alpha. Alpha testing is underway.** Use `scripts/install.sh` to install for your user on Linux.
+
+The desktop UI redesign starts the **2.x** release series. Fixes use patch releases such as `2.0.1-alpha`; feature updates use minor releases such as `2.1.0-alpha`. Releases retain the `-alpha` suffix while alpha testing continues. The build derives the application version from `CMakeLists.txt` and exposes it in About and through `mapl-player --version`.
 
 ---
 

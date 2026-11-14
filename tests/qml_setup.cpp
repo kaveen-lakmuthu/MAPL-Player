@@ -56,6 +56,7 @@ public slots:
         QCoreApplication::setOrganizationName("MAPL Tests");
         QCoreApplication::setOrganizationDomain("tests.mapl.local");
         QCoreApplication::setApplicationName("MAPLPlayerNativeTests");
+        QCoreApplication::setApplicationVersion(QStringLiteral(MAPL_APP_VERSION));
         QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, settings.path());
         QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settings.path());
         qputenv("XDG_CACHE_HOME", settings.path().toUtf8());

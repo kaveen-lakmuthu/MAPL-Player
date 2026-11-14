@@ -599,7 +599,7 @@ TestCase {
         compare(findChild(appWindow, "playerSurface").height, appWindow.height - 112);
     }
     function test_audioLayoutFitsSmallWindowsAndSidePanels_data() {
-        return [{tag: "empty", loaded: false}, {tag: "playing", loaded: true}];
+        return [{tag: "empty", loaded: false}, {tag: "single-track", loaded: true}, {tag: "multiple-tracks", loaded: true, multipleTracks: true}];
     }
     function test_audioLayoutFitsSmallWindowsAndSidePanels(data) {
         if (data.loaded) {
@@ -607,6 +607,8 @@ TestCase {
             tryVerify(function () { return appWindow.mediaPlayer.seekable; });
             appWindow.mediaPlayer.pause();
             appWindow.playlist = [{url: TestPaths.audioUrl, title: "An intentionally long track title that must fit beside the artwork", artist: "An artist with a long name"}];
+            if (data.multipleTracks)
+                appWindow.playlist = appWindow.playlist.concat([{url: TestPaths.audioUrl, title: "The next track"}]);
             appWindow.activeSubtitleText = "A long live lyric line which should wrap inside its card while all playback controls remain usable.";
         }
         appWindow.availableSubtitles = [{label: "English", url: "file:///movie.srt", isEmbedded: false, embeddedIndex: -1}];
@@ -622,6 +624,10 @@ TestCase {
                 var surface = findChild(appWindow, "playerSurface");
                 for (var name of ["audioArtwork", "audioLiveLyrics", "audioUpNext", "audioPlaylistButton"]) {
                     var item = findChild(appWindow, name);
+                    if (name === "audioUpNext" && !data.multipleTracks) {
+                        verify(!item.visible, "No next track must not produce a second playlist action");
+                        continue;
+                    }
                     verify(item.visible, name);
                     var point = item.mapToItem(surface, 0, 0);
                     verify(point.x >= -1 && point.y >= -1, name + " starts outside the audio view");

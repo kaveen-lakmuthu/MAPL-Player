@@ -31,6 +31,7 @@ add_executable(tst_qml qml_setup.cpp)
 target_compile_definitions(tst_qml PRIVATE
     QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/qml"
     MAPL_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+    MAPL_APP_VERSION="${MAPL_VERSION_STRING}"
 )
 target_link_libraries(tst_qml PRIVATE mapl_test_backends Qt6::QuickTest Qt6::Quick Qt6::Widgets)
 add_test(NAME qml COMMAND tst_qml)
@@ -66,7 +67,10 @@ set_tests_properties(playbackoptions mpris PROPERTIES TIMEOUT 40 ENVIRONMENT "QT
 if(MAPL_BUILD_APP)
     add_executable(tst_installedapplication cpp/tst_installedapplication.cpp)
     target_link_libraries(tst_installedapplication PRIVATE Qt6::Core Qt6::DBus Qt6::Test)
-    target_compile_definitions(tst_installedapplication PRIVATE MAPL_APP_BINARY="$<TARGET_FILE:mapl-player>")
+    target_compile_definitions(tst_installedapplication PRIVATE
+        MAPL_APP_BINARY="$<TARGET_FILE:mapl-player>"
+        MAPL_APP_VERSION="${MAPL_VERSION_STRING}"
+    )
     add_dependencies(tst_installedapplication mapl-player)
     add_test(NAME installedapplication COMMAND ${DBUS_RUN_SESSION} -- $<TARGET_FILE:tst_installedapplication>)
     set_tests_properties(installedapplication PROPERTIES TIMEOUT 40)

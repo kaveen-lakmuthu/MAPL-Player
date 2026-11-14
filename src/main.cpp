@@ -2,6 +2,7 @@
 #include <QQmlApplicationEngine>
 #include <QUrl>
 #include <QFileInfo>
+#include <QCommandLineParser>
 
 int main(int argc, char *argv[]) {
     // ── Suppress VA-API hardware acceleration noise ────────────────────────
@@ -26,19 +27,23 @@ int main(int argc, char *argv[]) {
     app.setOrganizationName("MAPL");
     app.setOrganizationDomain("mapl.io");
     app.setApplicationName("MAPLPlayerNative");
+    app.setApplicationVersion(QStringLiteral(MAPL_APP_VERSION));
     // Match the desktop launcher and provide a stable Wayland application ID
     // for icons, portal parenting and compositor window rules.
     app.setDesktopFileName(QStringLiteral("mapl-player"));
+
+    QCommandLineParser parser;
+    parser.setApplicationDescription(QStringLiteral("MAPL audio and video player"));
+    parser.addHelpOption();
+    parser.addVersionOption();
+    parser.addPositionalArgument(QStringLiteral("file"), QStringLiteral("Media file or file URL to open."), QStringLiteral("[file]"));
+    parser.process(app);
 
     // ── Parse startup file argument ────────────────────────────────────────
     // Dolphin / xdg-open passes the opened file as argv[1] (the %U token in
     // the .desktop Exec line). It may arrive as a file:// URL or a plain path.
     QString initialFileUrl;
-    for (int i = 1; i < argc; ++i) {
-        QString arg = QString::fromLocal8Bit(argv[i]);
-        if (arg.startsWith('-'))
-            continue;  // skip any Qt or application flags
-
+    for (const QString &arg : parser.positionalArguments()) {
         QUrl url(arg);
         if (url.isLocalFile()) {
             // Already a well-formed file:// URL (Dolphin passes these)

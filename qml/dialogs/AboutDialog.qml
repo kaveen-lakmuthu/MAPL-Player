@@ -26,7 +26,8 @@ PlayerDialog {
             Layout.fillWidth: true
         }
         Text {
-            text: "Version 1.0.0 (C++ / Qt6)"
+            objectName: "aboutVersion"
+            text: "Version " + Qt.application.version + " (C++ / Qt6)"
             horizontalAlignment: Text.AlignHCenter
             color: "#94a3b8"
             font.pixelSize: 12

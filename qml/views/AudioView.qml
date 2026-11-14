@@ -204,27 +204,31 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             spacing: 10
+            Item {
+                Layout.fillWidth: true
+                visible: !root.nextTrack
+            }
             DesktopButton {
                 objectName: "audioUpNext"
+                visible: !!root.nextTrack
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
                 implicitHeight: root.compact ? 48 : 62
                 glyph: "next"
-                hint: root.nextTrack ? "Play next: " + root.nextTrack.title : "Open the playlist"
+                hint: root.nextTrack ? "Play next: " + root.nextTrack.title : ""
                 onClicked: {
                     if (root.nextTrack) app.playNext();
-                    else app.togglePanel("playlist");
                 }
                 contentItem: RowLayout {
                     spacing: 12
-                    PlayerIcon { name: root.nextTrack ? "next" : "playlist"; ink: "#b8d5f0" }
+                    PlayerIcon { name: "next"; ink: "#b8d5f0" }
                     ColumnLayout {
                         spacing: 3
                         Layout.fillWidth: true
-                        Text { text: root.nextTrack ? "UP NEXT" : "YOUR PLAYLIST"; color: "#b7cee4"; font.pixelSize: 9; font.letterSpacing: 1 }
+                        Text { text: "UP NEXT"; color: "#b7cee4"; font.pixelSize: 9; font.letterSpacing: 1 }
                         Text {
                             Layout.fillWidth: true
-                            text: root.nextTrack ? root.nextTrack.title + (root.nextTrack.artist ? " · " + root.nextTrack.artist : "") : app.playlist.length > 0 ? "Choose another track or load a playlist" : "Open media or an XSPF playlist to begin"
+                            text: root.nextTrack ? root.nextTrack.title + (root.nextTrack.artist ? " · " + root.nextTrack.artist : "") : ""
                             color: "#e1ebf5"
                             font.pixelSize: 12
                             elide: Text.ElideRight
@@ -235,7 +239,7 @@ Item {
             DesktopButton {
                 objectName: "audioPlaylistButton"
                 glyph: "playlist"
-                text: root.width >= 480 ? "Playlist" : ""
+                text: "Playlist"
                 hint: "Show playlist · " + app.playlist.length + " tracks"
                 selected: app.panelView === "playlist"
                 onClicked: app.togglePanel("playlist")

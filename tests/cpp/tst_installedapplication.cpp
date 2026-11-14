@@ -11,6 +11,25 @@ class InstalledApplicationTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void versionOptionPrintsBuildVersionAndExits()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        auto environment = QProcessEnvironment::systemEnvironment();
+        environment.insert("QT_QPA_PLATFORM", "offscreen");
+        environment.insert("XDG_CONFIG_HOME", directory.filePath("config"));
+        environment.insert("XDG_CACHE_HOME", directory.filePath("cache"));
+        QProcess process;
+        process.setProcessEnvironment(environment);
+        process.start(QString::fromUtf8(MAPL_APP_BINARY), {QStringLiteral("--version")});
+        QVERIFY2(process.waitForStarted(3000), qPrintable(process.errorString()));
+        QVERIFY(process.waitForFinished(3000));
+        QCOMPARE(process.exitStatus(), QProcess::NormalExit);
+        QCOMPARE(process.exitCode(), 0);
+        QCOMPARE(QString::fromUtf8(process.readAllStandardOutput()).trimmed(),
+                 QStringLiteral("MAPLPlayerNative " MAPL_APP_VERSION));
+    }
+
     void relocatedExecutable_data()
     {
         QTest::addColumn<QString>("argumentKind");
