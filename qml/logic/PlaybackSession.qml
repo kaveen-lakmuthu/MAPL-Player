@@ -68,6 +68,7 @@ QtObject {
             app.subtitleGenerator.cancel();
             app.invalidateSubtitleFiles();
             app.playerController.cancelMediaJobs();
+            app.playerController.resetVideoFrame();
             app.mediaPlayer.source = track.url;
             // title now derived reactively from currentTrackIndex
 

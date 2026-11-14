@@ -84,6 +84,9 @@ if(MAPL_BUILD_APP)
 
     # Preserve the resource layout used by relative QML and JavaScript imports.
     set(QML_SOURCES
+        qml/components/DesktopButton.qml
+        qml/components/DesktopToolbar.qml
+        qml/components/PlayerIcon.qml
         qml/components/FileDrawer.qml
         qml/components/NavigationSidebar.qml
         qml/components/PlaybackControls.qml
@@ -95,6 +98,8 @@ if(MAPL_BUILD_APP)
         qml/components/TransportControls.qml
         qml/components/VolumeControl.qml
         qml/components/VolumeWheelHandler.qml
+        qml/dialogs/SubtitleSettingsPopup.qml
+        qml/dialogs/SubtitleGenerationPopup.qml
         qml/dialogs/PlaybackOptionsPopup.qml
         qml/dialogs/PlayerPopup.qml
         qml/dialogs/PlayerDialog.qml

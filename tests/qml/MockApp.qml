@@ -237,6 +237,8 @@ Item {
         function cancelMediaJobs() {
             ++cancelCount;
         }
+        function resetVideoFrame() {
+        }
         function cancelSubtitleExtraction() {
             ++cancelCount;
         }

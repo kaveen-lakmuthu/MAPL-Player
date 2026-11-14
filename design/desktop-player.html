@@ -1,0 +1,528 @@
+<style>
+  #mapl-desktop-proposal { color-scheme: light dark; font-family: system-ui, sans-serif; }
+  #mapl-desktop-proposal * { box-sizing: border-box; }
+  #mapl-desktop-proposal [hidden] { display: none !important; }
+  #mapl-desktop-proposal .mp-stage { min-height: 570px; }
+  #mapl-desktop-proposal .mp-window {
+    --mp-base: light-dark(#edf1f5, #182029);
+    --mp-ambient: #487f72;
+    --mp-tint: 18%;
+    --mp-bg: color-mix(in srgb, var(--mp-base), var(--mp-ambient) var(--mp-tint));
+    --mp-popup-bg: light-dark(#fafbfd, #202a35);
+    --mp-text: light-dark(#162232, #f0f5fc);
+    --mp-muted: light-dark(#43546a, #bccbdb);
+    --mp-line: light-dark(#ced8e2, #405265);
+    --mp-button: light-dark(#ffffff, #354556);
+    --mp-button-text: light-dark(#122238, #ffffff);
+    --mp-hover: light-dark(#dbe6f2, #4b6075);
+    --mp-selected: light-dark(#d7e7f3, #3c5a70);
+    --mp-accent: light-dark(#245ca5, #85b6f4);
+    --mp-panel-width: 250px;
+    --mp-video-height: 458px;
+    color: var(--mp-text); background: var(--mp-bg);
+    border: 0; border-radius: 0;
+    overflow: clip; font-size: 13px; line-height: 1.4; position: relative;
+  }
+  #mapl-desktop-proposal svg { width: 16px; height: 16px; flex-shrink: 0; }
+  #mapl-desktop-proposal button { font: inherit; color: var(--mp-button-text); background: var(--mp-button); border: 1px solid transparent; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 4px 7px; min-height: 30px; }
+  #mapl-desktop-proposal button:hover { background: var(--mp-hover); }
+  #mapl-desktop-proposal button:active { background: var(--mp-selected); }
+  #mapl-desktop-proposal button[aria-pressed="true"] { background: var(--mp-selected); color: var(--mp-text); }
+  #mapl-desktop-proposal button:disabled { color: var(--mp-muted); }
+  #mapl-desktop-proposal button.mp-icon-button { min-width: 30px; padding: 4px 6px; }
+  #mapl-desktop-proposal .mp-menubar { display: flex; align-items: center; flex-wrap: wrap; padding: 5px 8px; border-bottom: 1px solid var(--mp-line); gap: 5px; position: relative; }
+  #mapl-desktop-proposal .mp-panel-toggles { display: flex; gap: 3px; margin-left: 2px; }
+  #mapl-desktop-proposal .mp-view-toggle { display: flex; align-items: center; gap: 2px; padding-left: 7px; margin-left: 3px; border-left: 1px solid var(--mp-line); }
+  #mapl-desktop-proposal .mp-toolbar-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; margin-left: auto; }
+  #mapl-desktop-proposal .mp-cover-badge { color: var(--mp-accent); font-size: 11px; font-variant-numeric: tabular-nums; }
+  #mapl-desktop-proposal .mp-thumbnail-popup { position: absolute; z-index: 40; top: 100%; right: 6px; width: min(290px, calc(100% - 12px)); padding: 10px; background: var(--mp-popup-bg); border: 1px solid var(--mp-line); border-radius: 4px; box-shadow: 0 4px 15px #0003; }
+  #mapl-desktop-proposal .mp-thumbnail-heading { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  #mapl-desktop-proposal .mp-thumbnail-heading span:first-child { flex: 1; font-weight: 600; }
+  #mapl-desktop-proposal .mp-thumbnail-preview { aspect-ratio: 16 / 9; width: 100%; overflow: hidden; background: #080b0d; }
+  #mapl-desktop-proposal .mp-thumbnail-preview .mp-scene { width: 100%; }
+  #mapl-desktop-proposal .mp-thumbnail-preview .mp-frame-label { display: none; }
+  #mapl-desktop-proposal .mp-thumbnail-time, #mapl-desktop-proposal .mp-thumbnail-status { display: block; font-size: 12px; margin: 7px 0; color: var(--mp-muted); }
+  #mapl-desktop-proposal .mp-thumbnail-popup > button { width: 100%; justify-content: flex-start; }
+  #mapl-desktop-proposal .mp-thumbnail-popup > button[data-command="captureCover"] { color: var(--mp-text); background: var(--mp-selected); }
+  #mapl-desktop-proposal .mp-art-status { color: var(--mp-muted); font-size: 12px; margin: 4px 0 0; }
+  #mapl-desktop-proposal .mp-body { display: flex; min-height: 0; }
+  #mapl-desktop-proposal .mp-video { min-width: 0; flex: 1; height: var(--mp-video-height); position: relative; background: #080b0d; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  #mapl-desktop-proposal .mp-scene { position: relative; overflow: hidden; width: min(100%, calc(var(--mp-video-height) * 16 / 9)); flex-shrink: 0; aspect-ratio: 16 / 9; background: radial-gradient(ellipse at 70% 24%, #e3dfc6 0%, #a4b4b6 19%, transparent 46%), linear-gradient(#819ca6 0%, #a8b5b0 46%, #5f787a 62%, #304b4a 100%); }
+  #mapl-desktop-proposal .mp-ridge { position: absolute; inset: 0; }
+  #mapl-desktop-proposal .mp-ridge-far { background: #7e9396; clip-path: polygon(0 58%, 12% 37%, 19% 45%, 30% 23%, 39% 45%, 49% 32%, 63% 49%, 76% 28%, 91% 50%, 100% 38%, 100% 100%, 0 100%); }
+  #mapl-desktop-proposal .mp-snow { background: #c4ccc5; clip-path: polygon(23% 39%, 30% 23%, 39% 45%, 32% 36%, 30% 39%, 28% 34%, 26% 39%); }
+  #mapl-desktop-proposal .mp-ridge-near { background: linear-gradient(155deg, #49635e, #263f3c); clip-path: polygon(0 47%, 15% 63%, 27% 58%, 40% 75%, 51% 85%, 64% 67%, 76% 59%, 88% 68%, 100% 49%, 100% 100%, 0 100%); }
+  #mapl-desktop-proposal .mp-river { background: linear-gradient(105deg, #557974, #a4b9b4); opacity: .65; clip-path: polygon(56% 75%, 50% 86%, 53% 89%, 47% 95%, 52% 100%, 61% 100%, 53% 95%, 59% 89%, 54% 86%); }
+  #mapl-desktop-proposal .mp-foreground { background: #1d3330; clip-path: polygon(0 77%, 18% 87%, 29% 91%, 44% 100%, 0 100%); }
+  #mapl-desktop-proposal .mp-frame-label { position: absolute; left: 12px; top: 10px; color: #f1f4f1; background: #17272c99; padding: 2px 6px; font-size: 11px; border-radius: 2px; }
+  #mapl-desktop-proposal .mp-caption { position: absolute; bottom: 20px; left: 8%; right: 8%; text-align: center; pointer-events: none; }
+  #mapl-desktop-proposal .mp-caption span { color: #fff; background: #0009; font-size: 17px; padding: 3px 7px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  #mapl-desktop-proposal .mp-panel { flex: 0 0 var(--mp-panel-width); width: var(--mp-panel-width); border-left: 1px solid var(--mp-line); background: var(--mp-bg); }
+  #mapl-desktop-proposal .mp-panel-header { padding: 7px 10px; display: flex; align-items: center; border-bottom: 1px solid var(--mp-line); gap: 5px; }
+  #mapl-desktop-proposal .mp-panel-name { flex: 1; font-weight: 600; }
+  #mapl-desktop-proposal .mp-panel-item { display: flex; padding: 9px 12px; gap: 10px; align-items: baseline; border-bottom: 1px solid var(--mp-line); }
+  #mapl-desktop-proposal .mp-panel-item.mp-current { background: var(--mp-selected); }
+  #mapl-desktop-proposal .mp-panel-item span:first-child { color: var(--mp-muted); font-size: 12px; }
+  #mapl-desktop-proposal .mp-panel-item span:last-child { min-width: 0; overflow-wrap: anywhere; }
+  #mapl-desktop-proposal .mp-audio { height: var(--mp-video-height); flex: 1; min-width: 0; background: var(--mp-bg); padding: 20px; }
+  #mapl-desktop-proposal .mp-audio-heading { display: flex; gap: 18px; align-items: center; padding-bottom: 18px; }
+  #mapl-desktop-proposal .mp-audio-art { width: 104px; height: 104px; flex-shrink: 0; overflow: hidden; background: #080b0d; display: flex; align-items: center; }
+  #mapl-desktop-proposal .mp-audio-art .mp-scene { width: 100%; }
+  #mapl-desktop-proposal .mp-audio-art .mp-frame-label { display: none; }
+  #mapl-desktop-proposal .mp-audio-title { font-size: 19px; font-weight: 600; margin: 0 0 5px; overflow-wrap: anywhere; }
+  #mapl-desktop-proposal .mp-audio-meta { font-size: 12px; color: var(--mp-muted); margin: 0 0 6px; }
+  #mapl-desktop-proposal .mp-audio-tools { display: flex; flex-wrap: wrap; gap: 2px; }
+  #mapl-desktop-proposal .mp-audio-queue { border-top: 1px solid var(--mp-line); }
+  #mapl-desktop-proposal .mp-queue-heading { display: flex; padding: 8px 0; align-items: center; gap: 6px; color: var(--mp-muted); font-size: 12px; }
+  #mapl-desktop-proposal .mp-queue-heading span { flex: 1; }
+  #mapl-desktop-proposal .mp-audio-queue .mp-panel-item { padding: 8px 10px; }
+  #mapl-desktop-proposal .mp-panel-tools { padding: 5px 8px; display: flex; flex-wrap: wrap; gap: 3px; border-bottom: 1px solid var(--mp-line); }
+  #mapl-desktop-proposal .mp-panel-tools button { font-size: 12px; }
+  #mapl-desktop-proposal .mp-panel-search { width: 100%; font: inherit; font-size: 12px; color: var(--mp-text); background: var(--mp-bg); border: 1px solid var(--mp-line); border-radius: 3px; padding: 5px 7px; min-width: 0; }
+  #mapl-desktop-proposal button.mp-transcript-line { width: 100%; border-radius: 0; justify-content: flex-start; text-align: left; }
+  #mapl-desktop-proposal button.mp-queue-line { width: 100%; border-radius: 0; justify-content: flex-start; text-align: left; }
+  #mapl-desktop-proposal .mp-expanded .mp-video, #mapl-desktop-proposal .mp-expanded .mp-audio { display: none; }
+  #mapl-desktop-proposal .mp-expanded .mp-panel { width: 100%; flex: 1; height: var(--mp-video-height); border-left: 0; }
+  #mapl-desktop-proposal .mp-range-wrap { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; height: 23px; }
+  #mapl-desktop-proposal .mp-chapter-mark { position: absolute; width: 2px; height: 6px; background: light-dark(#252525, #dedede); pointer-events: none; top: 9px; }
+  #mapl-desktop-proposal .mp-seek-preview { position: absolute; bottom: calc(100% + 9px); width: 192px; z-index: 20; background: var(--mp-bg); color: var(--mp-text); border: 1px solid var(--mp-line); border-radius: 4px; box-shadow: 0 3px 12px #0004; padding: 4px; pointer-events: none; }
+  #mapl-desktop-proposal .mp-preview-image { width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #080b0d; }
+  #mapl-desktop-proposal .mp-preview-image .mp-scene { width: 100%; }
+  #mapl-desktop-proposal .mp-preview-image .mp-frame-label { display: none; }
+  #mapl-desktop-proposal .mp-preview-time { display: block; text-align: center; padding-top: 4px; font-weight: 600; }
+  #mapl-desktop-proposal .mp-preview-chapter { display: block; text-align: center; padding-top: 2px; }
+  #mapl-desktop-proposal .mp-preview-subtitle { margin: 3px 3px 1px; font-size: 11px; text-align: center; color: var(--mp-muted); }
+  #mapl-desktop-proposal .mp-chapters-popup { position: absolute; right: 10px; bottom: calc(100% + 4px); width: min(270px, calc(100% - 20px)); z-index: 25; padding: 5px; border: 1px solid var(--mp-line); background: var(--mp-bg); border-radius: 4px; color: var(--mp-text); box-shadow: 0 3px 12px #0004; }
+  #mapl-desktop-proposal .mp-chapters-popup button { width: 100%; display: flex; justify-content: space-between; text-align: left; }
+  #mapl-desktop-proposal .mp-chapters-popup time { color: var(--mp-muted); font-size: 12px; }
+  #mapl-desktop-proposal .mp-controls { border-top: 1px solid var(--mp-line); background: var(--mp-bg); padding: 3px 10px 5px; }
+  #mapl-desktop-proposal .mp-window:not(.mp-cinema) .mp-controls { position: relative; }
+  #mapl-desktop-proposal .mp-timeline { display: flex; gap: 9px; align-items: center; font-size: 11px; font-variant-numeric: tabular-nums; min-height: 23px; }
+  #mapl-desktop-proposal .mp-timeline input { flex: 1; width: 0; min-width: 0; }
+  #mapl-desktop-proposal input[type="range"] { accent-color: light-dark(#446e8c, #9faeb7); height: 16px; margin: 0; }
+  #mapl-desktop-proposal .mp-control-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+  #mapl-desktop-proposal button[data-play] { background: light-dark(#285f85, #bedbf4); color: light-dark(#ffffff, #13263b); font-weight: 600; min-width: 62px; }
+  #mapl-desktop-proposal button[data-play]:hover { background: light-dark(#306b93, #d2e7f9); }
+  #mapl-desktop-proposal .mp-control-row .mp-track-name { margin-left: 9px; flex: 1; color: var(--mp-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  #mapl-desktop-proposal .mp-volume { display: inline-flex; gap: 5px; align-items: center; }
+  #mapl-desktop-proposal .mp-volume input { width: 65px; }
+  #mapl-desktop-proposal .mp-volume-value { font-size: 11px; min-width: 29px; color: var(--mp-muted); font-variant-numeric: tabular-nums; }
+  #mapl-desktop-proposal .mp-popup { position: absolute; z-index: 30; top: 100%; left: 6px; width: min(280px, calc(100% - 12px)); padding: 5px; background: var(--mp-popup-bg); border: 1px solid var(--mp-line); box-shadow: 0 4px 15px #0003; border-radius: 4px; }
+  #mapl-desktop-proposal .mp-popup button { display: flex; justify-content: space-between; width: 100%; text-align: left; min-height: 30px; background: transparent; color: var(--mp-text); border-color: transparent; }
+  #mapl-desktop-proposal .mp-popup button:hover { background: var(--mp-hover); }
+  #mapl-desktop-proposal .mp-popup kbd { color: var(--mp-muted); font: inherit; font-size: 11px; }
+  #mapl-desktop-proposal .mp-popup p { padding: 5px 7px; margin: 0; color: var(--mp-muted); font-size: 12px; }
+  #mapl-desktop-proposal .mp-cinema .mp-menubar { border-bottom: 0; }
+  #mapl-desktop-proposal .mp-cinema .mp-body { position: relative; }
+  #mapl-desktop-proposal .mp-cinema { --mp-video-height: 526px; }
+  #mapl-desktop-proposal .mp-cinema .mp-controls { position: absolute; bottom: 0; left: 0; right: 0; z-index: 3; border: 0; color-scheme: dark; background: color-mix(in srgb, #141d27 88%, var(--mp-ambient)); --mp-button: #34495e; --mp-button-text: #ffffff; --mp-line: #7890a7; --mp-text: #f0f5fc; --mp-muted: #c3d1df; --mp-hover: #4b647b; --mp-selected: #38566d; }
+  #mapl-desktop-proposal .mp-cinema .mp-caption { bottom: 85px; }
+  #mapl-desktop-proposal .mp-cinema.mp-clean .mp-controls { visibility: hidden; pointer-events: none; }
+  #mapl-desktop-proposal .mp-cinema.mp-clean .mp-caption { bottom: 20px; }
+  #mapl-desktop-proposal .mp-cinema .mp-panel { position: relative; z-index: 4; }
+  #mapl-desktop-proposal .mp-cinema:has(.mp-panel:not([hidden])) .mp-controls { right: var(--mp-panel-width); }
+  #mapl-desktop-proposal .mp-cinema.mp-audio-mode .mp-controls, #mapl-desktop-proposal .mp-cinema.mp-expanded .mp-controls { position: relative; right: auto; visibility: visible; pointer-events: auto; }
+  #mapl-desktop-proposal .mp-cinema.mp-audio-mode, #mapl-desktop-proposal .mp-cinema.mp-expanded { --mp-video-height: 458px; }
+  #mapl-desktop-proposal .mp-cinema.mp-audio-mode .mp-reveal, #mapl-desktop-proposal .mp-cinema.mp-expanded .mp-reveal { visibility: hidden; }
+  #mapl-desktop-proposal .mp-cinema .mp-reveal { display: inline-flex; }
+  #mapl-desktop-proposal .mp-reveal { display: none; }
+  #mapl-desktop-proposal .mp-options-dialog { color: var(--mp-text); background: var(--mp-popup-bg); border: 1px solid var(--mp-line); border-radius: 7px; padding: 16px; width: 420px; max-width: calc(100% - 24px); box-shadow: 0 12px 45px #0005; }
+  #mapl-desktop-proposal .mp-options-dialog::backdrop { background: #09121b66; }
+  #mapl-desktop-proposal .mp-dialog-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  #mapl-desktop-proposal .mp-dialog-heading h3 { font: inherit; font-size: 16px; font-weight: 600; margin: 0; flex: 1; }
+  #mapl-desktop-proposal .mp-dialog-content { display: grid; gap: 10px; }
+  #mapl-desktop-proposal .mp-field { display: grid; gap: 5px; }
+  #mapl-desktop-proposal .mp-check { display: flex; align-items: center; gap: 7px; }
+  #mapl-desktop-proposal .mp-dialog-content select, #mapl-desktop-proposal .mp-dialog-content input:not([type="checkbox"]):not([type="range"]):not([type="color"]), #mapl-desktop-proposal .mp-dialog-content textarea { font: inherit; color: var(--mp-text); background: var(--mp-base); border: 1px solid var(--mp-line); padding: 6px 7px; border-radius: 3px; min-width: 0; width: 100%; }
+  #mapl-desktop-proposal .mp-dialog-content input[type="range"] { width: 100%; }
+  #mapl-desktop-proposal .mp-dialog-content textarea { min-height: 115px; resize: vertical; }
+  #mapl-desktop-proposal .mp-dialog-note { margin: 0; color: var(--mp-muted); font-size: 12px; }
+  #mapl-desktop-proposal .mp-dialog-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  #mapl-desktop-proposal .mp-dialog-row span:first-child { flex: 1; }
+  #mapl-desktop-proposal .mp-model-list { display: grid; gap: 6px; }
+  #mapl-desktop-proposal .mp-model-list .mp-dialog-row { border-bottom: 1px solid var(--mp-line); padding-bottom: 6px; }
+  #mapl-desktop-proposal i[data-lucide]:empty { display: none; }
+  @media (prefers-reduced-motion: no-preference) {
+    #mapl-desktop-proposal .mp-menubar, #mapl-desktop-proposal .mp-controls, #mapl-desktop-proposal .mp-audio { transition: background-color 800ms ease; }
+  }
+  @media (max-width: 640px) {
+    #mapl-desktop-proposal .mp-stage { min-height: 640px; }
+    #mapl-desktop-proposal .mp-body { flex-direction: column; }
+    #mapl-desktop-proposal .mp-window { --mp-video-height: 310px; }
+    #mapl-desktop-proposal .mp-video { flex: none; }
+    #mapl-desktop-proposal .mp-cinema { --mp-video-height: 378px; }
+    #mapl-desktop-proposal .mp-cinema.mp-audio-mode, #mapl-desktop-proposal .mp-cinema.mp-expanded { --mp-video-height: 310px; }
+    #mapl-desktop-proposal .mp-audio { flex: none; height: auto; min-height: var(--mp-video-height); padding: 14px; }
+    #mapl-desktop-proposal .mp-audio-art { width: 72px; height: 72px; }
+    #mapl-desktop-proposal .mp-audio-heading { gap: 12px; }
+    #mapl-desktop-proposal .mp-audio-title { font-size: 16px; }
+    #mapl-desktop-proposal .mp-panel { flex-basis: auto; width: 100%; border-left: 0; border-top: 1px solid var(--mp-line); }
+    #mapl-desktop-proposal .mp-panel-item { padding: 6px 12px; }
+    #mapl-desktop-proposal .mp-track-name { display: none; }
+    #mapl-desktop-proposal .mp-control-row { justify-content: space-between; }
+    #mapl-desktop-proposal .mp-caption span { font-size: 14px; }
+    #mapl-desktop-proposal .mp-cinema .mp-controls { position: static; }
+    #mapl-desktop-proposal .mp-cinema .mp-caption { bottom: 20px; }
+    #mapl-desktop-proposal .mp-panel-toggles { margin-left: 0; }
+    #mapl-desktop-proposal .mp-volume input { width: 48px; }
+  }
+  @media (pointer: coarse) {
+    #mapl-desktop-proposal button, #mapl-desktop-proposal button.mp-icon-button { min-height: 44px; min-width: 44px; }
+    #mapl-desktop-proposal input[type="range"] { min-height: 44px; }
+  }
+</style>
+<div id="mapl-desktop-proposal" class="viz-carousel" aria-label="MAPL desktop player layout proposals">
+  <section class="mp-stage" data-variant="Compact desktop" aria-label="Compact desktop player">
+    <div class="mp-window" data-layout="desktop" aria-label="Compact desktop layout">
+      <nav class="mp-menubar" aria-label="Player toolbar">
+        <button class="cursor-interaction" data-menu="File" aria-expanded="false">File ▾</button>
+        <div class="mp-view-toggle" role="group" aria-label="Media presentation"><button class="cursor-interaction" data-view="video" aria-pressed="true"><i data-lucide="film" aria-hidden="true"></i>Video</button><button class="cursor-interaction" data-view="audio" aria-pressed="false"><i data-lucide="music-2" aria-hidden="true"></i>Audio</button></div>
+        <div class="mp-panel-toggles"><button class="cursor-interaction" data-panel="transcript" aria-pressed="false"><i data-lucide="captions" aria-hidden="true"></i>Lyrics &amp; Subs</button><button class="cursor-interaction" data-panel="playlist" aria-pressed="false"><i data-lucide="list-video" aria-hidden="true"></i>Playlist</button></div>
+        <div class="mp-toolbar-actions"><button class="cursor-interaction" data-thumbnail aria-expanded="false"><i data-lucide="image" aria-hidden="true"></i>Thumbnail<span class="mp-cover-badge" hidden></span></button><button class="cursor-interaction" data-menu="Menu" aria-expanded="false" aria-label="Player options">Options ▾</button></div>
+        <div class="mp-popup" hidden></div>
+        <div class="mp-thumbnail-popup" role="dialog" aria-label="Select video thumbnail" hidden><div class="mp-thumbnail-heading"><span>Video thumbnail</span><button class="mp-icon-button cursor-interaction" data-close-thumbnail aria-label="Close thumbnail selection">×</button></div><div class="mp-thumbnail-preview" aria-hidden="true"></div><span class="mp-thumbnail-time">Current frame · 03:13</span><button class="cursor-interaction" data-command="captureCover"><i data-lucide="camera" aria-hidden="true"></i>Use this frame as thumbnail</button><button class="cursor-interaction" data-command="chooseCoverFrame">Select another frame in Video view</button><span class="mp-thumbnail-status" aria-live="polite">No custom frame selected</span></div>
+      </nav>
+      <div class="mp-body">
+        <div class="mp-video" role="img" aria-label="Illustrative video frame of a mountain valley, fitted to its original aspect ratio">
+          <div class="mp-scene"><div class="mp-ridge mp-ridge-far"></div><div class="mp-ridge mp-snow"></div><div class="mp-ridge mp-ridge-near"></div><div class="mp-ridge mp-river"></div><div class="mp-ridge mp-foreground"></div><span class="mp-frame-label">Illustrative video frame</span></div>
+          <div class="mp-caption"><span>The valley opens up beyond the ridge.</span></div>
+        </div>
+        <div class="mp-audio" hidden aria-label="Audio view of the current media">
+          <div class="mp-audio-heading"><div><div class="mp-audio-art" aria-hidden="true"></div><p class="mp-art-status">Automatic cover</p></div><div><p class="mp-audio-meta">Now playing · audio view</p><h3 class="mp-audio-title">Highlands.mp4</h3><p class="mp-audio-meta">Original audio · stereo</p><div class="mp-audio-tools"><button class="cursor-interaction" data-panel="transcript" aria-pressed="false">Lyrics &amp; transcript</button><button class="cursor-interaction" data-dialog="audio">Audio options…</button><button class="cursor-interaction" data-thumbnail aria-expanded="false">Thumbnail…</button></div></div></div>
+          <div class="mp-audio-queue"><div class="mp-queue-heading"><span>Queue · 3 files</span><button class="cursor-interaction" data-command="loop" aria-label="Toggle playlist looping"><i data-lucide="repeat-2" aria-hidden="true"></i>Loop</button></div><div class="mp-queue-items"></div></div>
+        </div>
+        <aside class="mp-panel" aria-label="Optional side panel" hidden><div class="mp-panel-header"><span class="mp-panel-name">Playlist</span><button class="mp-icon-button cursor-interaction" data-expand-panel aria-label="Expand panel" aria-pressed="false">Expand</button><button class="mp-icon-button cursor-interaction" data-close-panel aria-label="Close side panel">×</button></div><div class="mp-panel-tools" hidden><input class="mp-panel-search" type="search" placeholder="Search transcript…" aria-label="Search transcript"><button class="cursor-interaction" data-dialog="generation">Generate…</button><button class="cursor-interaction" data-dialog="export">Export…</button><button class="cursor-interaction" data-dialog="subtitleAppearance">Settings…</button></div><div class="mp-panel-content"></div></aside>
+      </div>
+      <div class="mp-controls">
+        <div class="mp-timeline"><span class="mp-position">03:13</span><div class="mp-range-wrap"><input type="range" min="0" max="1458" value="193" step="1" aria-label="Playback position"><span class="mp-chapter-mark" style="left:19.55%" aria-hidden="true"></span><span class="mp-chapter-mark" style="left:51.1%" aria-hidden="true"></span><span class="mp-chapter-mark" style="left:80.93%" aria-hidden="true"></span><div class="mp-seek-preview" hidden><div class="mp-preview-image" aria-hidden="true"></div><span class="mp-preview-time">03:13</span><span class="mp-preview-chapter">Into the valley</span><p class="mp-preview-subtitle">The valley opens up beyond the ridge.</p></div></div><span>24:18</span></div>
+        <div class="mp-chapters-popup" hidden aria-label="Chapters"><button class="cursor-interaction" data-position="0"><span>Into the valley</span><time>00:00</time></button><button class="cursor-interaction" data-position="285"><span>River crossing</span><time>04:45</time></button><button class="cursor-interaction" data-position="745"><span>The upper trail</span><time>12:25</time></button><button class="cursor-interaction" data-position="1180"><span>Beyond the ridge</span><time>19:40</time></button></div>
+        <div class="mp-control-row">
+          <button class="mp-icon-button cursor-interaction" data-command="previous" aria-label="Previous queued file" data-tooltip="Previous file"><i data-lucide="skip-back" aria-hidden="true"></i>Prev</button>
+          <button class="mp-icon-button cursor-interaction" data-seek="-5" aria-label="Seek backward 5 seconds">−5s</button><button class="mp-icon-button cursor-interaction" data-play aria-label="Pause"><i data-lucide="pause" aria-hidden="true"></i>Pause</button><button class="mp-icon-button cursor-interaction" data-seek="5" aria-label="Seek forward 5 seconds">+5s</button>
+          <button class="mp-icon-button cursor-interaction" data-command="next" aria-label="Next queued file" data-tooltip="Next file"><i data-lucide="skip-forward" aria-hidden="true"></i>Next</button>
+          <span class="mp-track-name">Highlands.mp4</span>
+          <button class="mp-icon-button cursor-interaction" data-command="loop" aria-pressed="false" aria-label="Toggle playlist looping" data-tooltip="Loop playlist">Loop</button><button class="cursor-interaction" data-rate aria-label="Playback speed">1×</button><button class="cursor-interaction" data-captions aria-pressed="true" aria-label="Toggle subtitles">CC</button><button class="mp-icon-button cursor-interaction" data-chapters aria-expanded="false" aria-label="Choose chapter">Chapters</button>
+          <div class="mp-volume"><button class="mp-icon-button cursor-interaction" data-mute aria-label="Mute"><i data-lucide="volume-2" aria-hidden="true"></i>Mute</button><input type="range" min="0" max="100" value="75" aria-label="Volume"><span class="mp-volume-value">75%</span></div>
+          <button class="mp-icon-button cursor-interaction" data-theater aria-label="Toggle clean viewing mode" aria-pressed="false">Cinema</button>
+        </div>
+      </div>
+      <dialog class="mp-options-dialog" aria-label="Player settings"><div class="mp-dialog-heading"><h3>Player settings</h3><button class="cursor-interaction" data-close-dialog aria-label="Close settings">Close</button></div><div class="mp-dialog-content"></div></dialog>
+      <span class="mp-announcement" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);"></span>
+    </div>
+  </section>
+  <section class="mp-stage" data-variant="Cinema" aria-label="Cinema player with overlay controls" hidden></section>
+</div>
+<script>
+(() => {
+  const root = document.getElementById('mapl-desktop-proposal');
+  const desktop = root.querySelector('[data-layout="desktop"]');
+  const scene = desktop.querySelector('.mp-video .mp-scene');
+  desktop.querySelector('.mp-audio-art').appendChild(scene.cloneNode(true));
+  desktop.querySelector('.mp-preview-image').appendChild(scene.cloneNode(true));
+  desktop.querySelector('.mp-thumbnail-preview').appendChild(scene.cloneNode(true));
+  const cinema = desktop.cloneNode(true);
+  cinema.dataset.layout = 'cinema';
+  cinema.classList.add('mp-cinema');
+  cinema.setAttribute('aria-label', 'Cinema layout');
+  cinema.querySelector('.mp-menubar').insertAdjacentHTML('beforeend', '<button class="mp-reveal cursor-interaction" data-clean aria-pressed="false">Hide controls</button>');
+  root.querySelector('[data-variant="Cinema"]').appendChild(cinema);
+  const defaults = () => ({ view: 'video', panel: 'none', expanded: false, looping: false, trackIndex: 0, playing: true, captions: true, position: 193, volume: 75, rate: 1, clean: false, panelWidth: 250, query: '', covers: {}, ambient: true, ambientStrength: 18, fontSize: 17, subtitleColor: '#ffffff', subtitleOpacity: 60, subtitleOffset: 0, audioDelay: 0, audioTrack: 'Original audio', playFolder: true, subtitleTrack: 'English', model: 'tiny', language: 'Auto-Detect', translate: false, subtitleCleared: false, recentsCleared: false });
+  const states = { desktop: defaults(), cinema: defaults() };
+  const windows = { desktop, cinema };
+  const tracks = ['Highlands.mp4', 'Coastline.mp4', 'Forest walk.mp4'];
+  const chapters = [{ start: 0, title: 'Into the valley' }, { start: 285, title: 'River crossing' }, { start: 745, title: 'The upper trail' }, { start: 1180, title: 'Beyond the ridge' }];
+  const subtitles = [{ start: 148, end: 176, text: 'We follow the path along the river.' }, { start: 193, end: 208, text: 'The valley opens up beyond the ridge.' }, { start: 209, end: 235, text: 'There is still a long way to go.' }, { start: 285, end: 315, text: 'We cross the river before the climb.' }, { start: 745, end: 780, text: 'The trail continues into the mountains.' }, { start: 1180, end: 1215, text: 'At last, we reach the other side.' }];
+  const formatTime = seconds => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
+  const chapterAt = seconds => chapters.filter(chapter => chapter.start <= seconds).slice(-1)[0].title;
+  const subtitleAt = seconds => { const line = subtitles.find(line => seconds >= line.start && seconds <= line.end); return line ? line.text : ''; };
+  const refreshIcons = () => { if (typeof globalThis.lucide?.createIcons === 'function') { try { globalThis.lucide.createIcons({ attrs: { width: 16, height: 16 } }); } catch {} } };
+  function restore(saved) {
+    const values = saved && saved.privateContent && saved.privateContent.layouts;
+    if (!values) return;
+    for (const name of Object.keys(states)) {
+      const value = values[name];
+      if (!value || typeof value !== 'object') continue;
+      for (const key of ['playing', 'captions', 'clean', 'expanded', 'looping', 'ambient', 'playFolder', 'translate', 'subtitleCleared', 'recentsCleared']) if (typeof value[key] === 'boolean') states[name][key] = value[key];
+      if (['video', 'audio'].includes(value.view)) states[name].view = value.view;
+      if (Number.isInteger(value.trackIndex) && value.trackIndex >= 0 && value.trackIndex < tracks.length) states[name].trackIndex = value.trackIndex;
+      if (['none', 'playlist', 'transcript'].includes(value.panel)) states[name].panel = value.panel;
+      if (Number.isFinite(value.position)) states[name].position = Math.min(1458, Math.max(0, value.position));
+      if (Number.isFinite(value.volume)) states[name].volume = Math.min(100, Math.max(0, value.volume));
+      if ([0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3].includes(value.rate)) states[name].rate = value.rate;
+      if (Number.isFinite(value.panelWidth)) states[name].panelWidth = Math.min(320, Math.max(200, value.panelWidth));
+      if (typeof value.query === 'string') states[name].query = value.query.slice(0, 128);
+      for (const [key, low, high] of [['ambientStrength', 0, 25], ['fontSize', 12, 40], ['subtitleOpacity', 0, 100], ['subtitleOffset', -120, 120], ['audioDelay', -2000, 2000]]) if (Number.isFinite(value[key])) states[name][key] = Math.min(high, Math.max(low, value[key]));
+      if (/^#[0-9a-f]{6}$/i.test(value.subtitleColor || '')) states[name].subtitleColor = value.subtitleColor;
+      for (const key of ['audioTrack', 'subtitleTrack', 'model', 'language']) if (typeof value[key] === 'string') states[name][key] = value[key].slice(0, 80);
+      if (value.covers && typeof value.covers === 'object') {
+        states[name].covers = {};
+        tracks.forEach((track, index) => { const frame = value.covers[String(index)]; if (Number.isFinite(frame) && frame >= 0 && frame <= 1458) states[name].covers[String(index)] = frame; });
+      }
+    }
+  }
+  function save() {
+    if (!window.openai || !window.openai.setWidgetState) return;
+    try { Promise.resolve(window.openai.setWidgetState({ modelContent: { desktopView: states.desktop.view, desktopPanel: states.desktop.panel, ambientEnabled: states.desktop.ambient, ambientStrength: states.desktop.ambientStrength, cinemaView: states.cinema.view, cinemaPanel: states.cinema.panel }, privateContent: { layouts: states } })).catch(() => {}); } catch {}
+  }
+  function announce(win, message) { win.querySelector('.mp-announcement').textContent = message; }
+  function render(name) {
+    const win = windows[name], state = states[name];
+    win.style.setProperty('--mp-panel-width', `${state.panelWidth}px`);
+    const palette = ['#568d7c', '#577caa', '#a78256', '#8b71aa'];
+    const chapterIndex = chapters.filter(chapter => chapter.start <= state.position).length - 1;
+    win.style.setProperty('--mp-ambient', state.ambient ? palette[(chapterIndex + state.trackIndex) % palette.length] : '#52789e');
+    win.style.setProperty('--mp-tint', `${state.ambient ? state.ambientStrength : 0}%`);
+    win.classList.toggle('mp-clean', state.clean);
+    win.classList.toggle('mp-audio-mode', state.view === 'audio');
+    win.classList.toggle('mp-expanded', state.expanded && state.panel !== 'none');
+    win.querySelector('.mp-video').hidden = state.view !== 'video';
+    win.querySelector('.mp-audio').hidden = state.view !== 'audio';
+    win.querySelectorAll('[data-view]').forEach(button => button.setAttribute('aria-pressed', String(state.view === button.dataset.view)));
+    win.querySelectorAll('[data-command="loop"]').forEach(button => button.setAttribute('aria-pressed', String(state.looping)));
+    win.querySelector('.mp-track-name').textContent = tracks[state.trackIndex];
+    win.querySelector('.mp-audio-title').textContent = tracks[state.trackIndex];
+    const cover = state.covers[String(state.trackIndex)];
+    const hasCover = Number.isFinite(cover);
+    const frameTransform = frame => `scale(1.12) translateX(${(frame / 1458 - 0.5) * 8}%)`;
+    win.querySelector('.mp-audio-art .mp-scene').style.transform = hasCover ? frameTransform(cover) : '';
+    win.querySelector('.mp-art-status').textContent = hasCover ? `Thumbnail · ${formatTime(cover)}` : 'Automatic cover';
+    win.querySelector('.mp-thumbnail-preview .mp-scene').style.transform = frameTransform(state.position);
+    win.querySelector('.mp-thumbnail-time').textContent = `Current frame · ${formatTime(state.position)}`;
+    win.querySelector('.mp-thumbnail-status').textContent = hasCover ? `Saved for this file · ${formatTime(cover)}` : 'No custom frame selected';
+    const coverBadge = win.querySelector('.mp-cover-badge');
+    coverBadge.hidden = !hasCover;
+    coverBadge.textContent = hasCover ? formatTime(cover) : '';
+    const queue = tracks.map((title, index) => `<button class="mp-panel-item mp-queue-line cursor-interaction${index === state.trackIndex ? ' mp-current' : ''}" data-track="${index}"><span>${String(index + 1).padStart(2, '0')}</span><span>${title}</span></button>`).join('');
+    win.querySelector('.mp-queue-items').innerHTML = queue;
+    win.querySelector('.mp-panel').hidden = state.panel === 'none';
+    win.querySelectorAll('[data-panel]').forEach(button => button.setAttribute('aria-pressed', String(state.panel === button.dataset.panel)));
+    win.querySelector('.mp-panel-name').textContent = state.panel === 'transcript' ? 'Lyrics & transcript' : 'Playlist · 3 files';
+    win.querySelector('.mp-panel-tools').hidden = state.panel !== 'transcript';
+    win.querySelector('.mp-panel-search').value = state.query;
+    win.querySelector('[data-expand-panel]').setAttribute('aria-pressed', String(state.expanded));
+    win.querySelector('[data-expand-panel]').setAttribute('aria-label', state.expanded ? 'Restore side panel' : 'Expand panel');
+    const matching = state.subtitleCleared ? [] : subtitles.filter(line => line.text.toLowerCase().includes(state.query.trim().toLowerCase()));
+    win.querySelector('.mp-panel-content').innerHTML = state.panel === 'transcript'
+      ? matching.map(line => `<button class="mp-panel-item mp-transcript-line cursor-interaction${state.position >= line.start && state.position <= line.end ? ' mp-current' : ''}" data-position="${line.start}"><span>${formatTime(line.start)}</span><span>${line.text}</span></button>`).join('') || '<p class="mp-audio-meta" style="padding:12px">No matching lines</p>'
+      : queue;
+    const play = win.querySelector('[data-play]');
+    play.setAttribute('aria-label', state.playing ? 'Pause' : 'Play');
+    play.innerHTML = `<i data-lucide="${state.playing ? 'pause' : 'play'}" aria-hidden="true"></i><span>${state.playing ? 'Pause' : 'Play'}</span>`;
+    win.querySelector('[data-captions]').setAttribute('aria-pressed', String(state.captions));
+    const caption = subtitleAt(state.position - state.subtitleOffset);
+    win.querySelector('.mp-caption').hidden = !state.captions || state.subtitleCleared || caption === '';
+    win.querySelector('.mp-caption span').textContent = caption;
+    win.querySelector('.mp-caption span').style.fontSize = `${state.fontSize}px`;
+    win.querySelector('.mp-caption span').style.color = state.subtitleColor;
+    win.querySelector('.mp-caption span').style.backgroundColor = `rgb(0 0 0 / ${state.subtitleOpacity}%)`;
+    win.querySelector('.mp-position').textContent = formatTime(state.position);
+    win.querySelector('.mp-timeline input').value = state.position;
+    win.querySelector('.mp-volume input').value = state.volume;
+    win.querySelector('.mp-volume-value').textContent = `${state.volume}%`;
+    const mute = win.querySelector('[data-mute]');
+    mute.setAttribute('aria-label', state.volume === 0 ? 'Unmute' : 'Mute');
+    mute.innerHTML = `<i data-lucide="${state.volume === 0 ? 'volume-x' : 'volume-2'}" aria-hidden="true"></i><span>${state.volume === 0 ? 'Unmute' : 'Mute'}</span>`;
+    win.querySelector('[data-rate]').textContent = `${state.rate}×`;
+    win.querySelector('[data-theater]').setAttribute('aria-pressed', String(win.classList.contains('mp-cinema')));
+    const reveal = win.querySelector('[data-clean]');
+    if (reveal) { reveal.textContent = state.clean ? 'Show controls' : 'Hide controls'; reveal.setAttribute('aria-pressed', String(state.clean)); }
+    syncDialog(name);
+    refreshIcons();
+  }
+  const menuContent = {
+    Menu: '<button data-dialog="playback"><span>Playback &amp; folder queue</span><span>›</span></button><button data-menu="Audio" aria-expanded="false"><span>Audio tracks, speed &amp; delay</span><span>›</span></button><button data-menu="Subtitles" aria-expanded="false"><span>Subtitles &amp; Whisper models</span><span>›</span></button><button data-menu="View" aria-expanded="false"><span>Views &amp; ambient colour</span><span>›</span></button><button data-dialog="about"><span>About MAPL Player</span></button>',
+    File: '<button data-dialog="openMedia"><span>Open media…</span><kbd>Ctrl+O</kbd></button><button data-dialog="loadPlaylist"><span>Load playlist…</span></button><button data-dialog="loadLyrics"><span>Load lyrics / subtitles…</span></button><button data-dialog="recents"><span>Recent files</span></button>',
+    Audio: '<button data-dialog="audio"><span>Audio track…</span></button><button data-dialog="audio"><span>Playback speed…</span></button><button data-dialog="audio"><span>Audio delay…</span></button>',
+    Subtitles: '<button data-command="captions"><span>Toggle subtitles</span></button><button data-dialog="subtitleTracks"><span>Subtitle track…</span></button><button data-dialog="loadLyrics"><span>Load subtitles…</span></button><button data-command="clearSubtitles"><span>Clear lyrics / subtitles</span></button><button data-dialog="subtitleAppearance"><span>Appearance &amp; timing…</span></button><button data-dialog="generation"><span>Generate subtitles…</span></button><button data-dialog="export"><span>Export subtitles…</span></button><button data-dialog="models"><span>Manage Whisper models…</span></button>',
+    View: '<button data-command="video"><span>Video view</span></button><button data-command="audio"><span>Audio view</span></button><button data-command="playlist"><span>Playlist panel</span></button><button data-command="transcript"><span>Lyrics &amp; transcript</span></button><button data-command="captureCover"><span>Capture cover frame</span></button><button data-dialog="ambient"><span>Ambient colour…</span></button><button data-command="theater"><span>Toggle cinema controls</span></button>',
+  };
+  function syncDialog(name) {
+    const state = states[name], dialog = windows[name].querySelector('.mp-options-dialog');
+    dialog.querySelectorAll('[data-setting]').forEach(control => {
+      const value = state[control.dataset.setting];
+      if (control.type === 'checkbox') control.checked = Boolean(value);
+      else if (value !== undefined && document.activeElement !== control) control.value = value;
+    });
+    dialog.querySelectorAll('[data-value]').forEach(value => value.textContent = String(state[value.dataset.value]));
+  }
+  function openDialog(name, kind) {
+    const win = windows[name], state = states[name], dialog = win.querySelector('.mp-options-dialog');
+    const option = (values, setting) => `<select data-setting="${setting}">${values.map(value => `<option value="${value}">${value}${setting === 'rate' ? '×' : ''}</option>`).join('')}</select>`;
+    const check = (setting, label) => `<label class="mp-check"><input type="checkbox" data-setting="${setting}">${label}</label>`;
+    const field = (label, control) => `<label class="mp-field"><span>${label}</span>${control}</label>`;
+    const sampleList = tracks.map((track, index) => `<button class="cursor-interaction" data-track="${index}" data-close-after>${track}</button>`).join('');
+    const dialogs = {
+      audio: ['Audio & playback', field('Audio track', option(['Original audio', 'Alternate audio', 'Disabled'], 'audioTrack')) + field('Playback speed', option([0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3], 'rate')) + field('Audio delay (ms)', '<input type="number" min="-2000" max="2000" step="50" data-setting="audioDelay">') + '<button data-command="resetAudioDelay">Reset audio delay</button>'],
+      playback: ['Playback & queue', check('looping', 'Loop playlist') + check('playFolder', 'Automatically load files from the same folder') + '<div class="mp-dialog-row"><button data-command="previous">Previous file</button><button data-command="play">Play / pause</button><button data-command="next">Next file</button></div>'],
+      ambient: ['Ambient colour', check('ambient', 'Follow the colours of the video') + field('Tint strength · <output data-value="ambientStrength"></output>%', '<input type="range" min="0" max="25" step="1" data-setting="ambientStrength">') + '<p class="mp-dialog-note">Toolbar and playback strip</p>'],
+      subtitleTracks: ['Subtitle tracks', field('Active track', option(['English', 'Embedded track', 'Off'], 'subtitleTrack')) + check('captions', 'Show subtitles') + '<button data-command="restoreSubtitles">Restore sample subtitles</button>'],
+      subtitleAppearance: ['Subtitle appearance & timing', field('Text size · <output data-value="fontSize"></output> px', '<input type="range" min="12" max="40" step="1" data-setting="fontSize">') + field('Text colour', '<input type="color" data-setting="subtitleColor">') + field('Background opacity · <output data-value="subtitleOpacity"></output>%', '<input type="range" min="0" max="100" data-setting="subtitleOpacity">') + '<div>Timing offset · <output data-value="subtitleOffset"></output> s</div><div class="mp-dialog-row"><button data-offset="-2">−2s</button><button data-offset="-0.5">−0.5s</button><button data-offset="0.5">+0.5s</button><button data-offset="2">+2s</button></div>'],
+      generation: ['Generate subtitles', field('Whisper model', option(['tiny', 'base', 'small', 'medium', 'large-v3', 'large-v3-turbo'], 'model')) + field('Audio language', option(['Auto-Detect', 'English', 'Sinhala', 'Tamil', 'Hindi', 'Japanese', 'French', 'German', 'Spanish'], 'language')) + check('translate', 'Translate to English') + '<button data-native-action="Transcription runs in the native player; this preview lets you inspect its controls.">Generate subtitles</button><output class="mp-dialog-note" data-native-status>Layout preview · offline generation</output>'],
+      models: ['Whisper models', '<div class="mp-model-list">' + ['tiny', 'base', 'small', 'medium', 'large-v3', 'large-v3-turbo'].map(model => `<div class="mp-dialog-row"><span>${model}</span><button data-native-action="Model downloads and deletion run in the native player.">Download</button><button data-native-action="Model downloads and deletion run in the native player.">Delete</button></div>`).join('') + '</div><output class="mp-dialog-note" data-native-status>Model management preview</output>'],
+      openMedia: ['Open media', '<div class="mp-dialog-note">Sample files</div>' + sampleList + field('Choose a local media file', '<input type="file" accept="video/*,audio/*" data-local-file>') + '<output class="mp-dialog-note" data-file-status></output>'],
+      loadPlaylist: ['Load playlist', field('XSPF playlist', '<input type="file" accept=".xspf" data-local-file>') + '<output class="mp-dialog-note" data-file-status></output>'],
+      loadLyrics: ['Load lyrics / subtitles', field('TXT, SRT or VTT', '<input type="file" accept=".txt,.srt,.vtt" data-local-file>') + '<output class="mp-dialog-note" data-file-status></output><button data-command="restoreSubtitles">Use sample transcript</button>'],
+      recents: ['Recent files', state.recentsCleared ? '<p class="mp-dialog-note">No recent files</p>' : sampleList + '<button data-command="clearRecents">Clear recent files</button>'],
+      export: ['Export subtitles', '<label class="mp-field"><span>Format</span><select data-export-format><option>SRT</option><option>VTT</option><option>TXT</option></select></label><textarea readonly aria-label="Subtitle export preview" data-export-text>1\n00:03:13,000 --> 00:03:28,000\nThe valley opens up beyond the ridge.</textarea>'],
+      about: ['About MAPL Player', '<div>MAPL Player</div><div class="mp-dialog-note">Video, audio, transcripts and offline subtitles</div><div class="mp-dialog-note">Desktop UI preview</div>']
+    };
+    const content = dialogs[kind];
+    if (!content) return;
+    closeMenu(win);
+    dialog.querySelector('h3').textContent = content[0];
+    dialog.setAttribute('aria-label', content[0]);
+    dialog.dataset.kind = kind;
+    dialog.querySelector('.mp-dialog-content').innerHTML = content[1];
+    syncDialog(name);
+    if (!dialog.open) dialog.showModal();
+  }
+  function closeMenu(win) { win.querySelector('.mp-popup').hidden = true; win.querySelector('.mp-thumbnail-popup').hidden = true; win.querySelectorAll('[data-menu], [data-thumbnail]').forEach(button => button.setAttribute('aria-expanded', 'false')); }
+  function act(name, action) {
+    const win = windows[name], state = states[name];
+    if (action === 'play') state.playing = !state.playing;
+    if (action === 'captions') state.captions = !state.captions;
+    if (action === 'loop') state.looping = !state.looping;
+    if (action === 'resetAudioDelay') state.audioDelay = 0;
+    if (action === 'clearSubtitles') { state.subtitleCleared = true; state.captions = false; }
+    if (action === 'restoreSubtitles') { state.subtitleCleared = false; state.captions = true; }
+    if (action === 'clearRecents') state.recentsCleared = true;
+    if (action === 'captureCover') { state.covers[String(state.trackIndex)] = state.position; announce(win, `Thumbnail saved for ${tracks[state.trackIndex]} at ${formatTime(state.position)}`); }
+    if (action === 'chooseCoverFrame') { state.view = 'video'; state.expanded = false; state.clean = false; }
+    if (action === 'previous' || action === 'next') {
+      const target = state.trackIndex + (action === 'previous' ? -1 : 1);
+      const nextIndex = state.looping ? (target + tracks.length) % tracks.length : Math.min(tracks.length - 1, Math.max(0, target));
+      if (nextIndex !== state.trackIndex) { state.trackIndex = nextIndex; state.position = 0; }
+    }
+    if (action === 'video' || action === 'audio') { state.view = action; state.expanded = false; }
+    if (action === 'rate') state.rate = [1, 1.25, 1.5, 2][([1, 1.25, 1.5, 2].indexOf(state.rate) + 1) % 4];
+    if (action === 'back' || action === 'forward') state.position = Math.min(1458, Math.max(0, state.position + (action === 'back' ? -5 : 5)));
+    if (action === 'playlist' || action === 'transcript') { state.panel = state.panel === action ? 'none' : action; if (state.panel === 'none') state.expanded = false; }
+    if (action === 'theater') { win.classList.toggle('mp-cinema'); state.clean = false; }
+    render(name); save();
+    if (action === 'clearRecents') openDialog(name, 'recents');
+  }
+  restore(window.openai && window.openai.widgetState);
+  for (const name of Object.keys(windows)) {
+    const win = windows[name], state = states[name];
+    render(name);
+    const range = win.querySelector('.mp-timeline input');
+    const wrapper = win.querySelector('.mp-range-wrap');
+    const preview = win.querySelector('.mp-seek-preview');
+    let dragging = false;
+    const showPreview = position => {
+      position = Math.max(0, Math.min(1458, position));
+      preview.hidden = false;
+      preview.querySelector('.mp-preview-time').textContent = formatTime(position);
+      preview.querySelector('.mp-preview-chapter').textContent = chapterAt(position);
+      preview.querySelector('.mp-preview-subtitle').textContent = subtitleAt(position);
+      preview.querySelector('.mp-scene').style.transform = `scale(1.12) translateX(${(position / 1458 - 0.5) * 8}%)`;
+      const trackBounds = wrapper.getBoundingClientRect();
+      const controlBounds = win.querySelector('.mp-controls').getBoundingClientRect();
+      const low = controlBounds.left + 6 - trackBounds.left;
+      const high = controlBounds.right - 6 - trackBounds.left - preview.offsetWidth;
+      const target = position / 1458 * trackBounds.width - preview.offsetWidth / 2;
+      preview.style.left = `${Math.max(low, Math.min(high, target))}px`;
+    };
+    range.addEventListener('pointermove', event => {
+      const bounds = range.getBoundingClientRect();
+      showPreview(dragging ? Number(range.value) : (event.clientX - bounds.left - 7) / Math.max(1, bounds.width - 14) * 1458);
+    });
+    range.addEventListener('pointerdown', () => { dragging = true; showPreview(Number(range.value)); });
+    range.addEventListener('pointerup', () => { dragging = false; });
+    range.addEventListener('pointercancel', () => { dragging = false; preview.hidden = true; });
+    range.addEventListener('pointerleave', () => { if (!dragging && document.activeElement !== range) preview.hidden = true; });
+    range.addEventListener('focus', () => showPreview(Number(range.value)));
+    range.addEventListener('blur', () => { if (!dragging) preview.hidden = true; });
+    win.addEventListener('click', event => {
+      const button = event.target.closest('button');
+      if (!button || !win.contains(button)) return;
+      if (button.hasAttribute('data-thumbnail')) {
+        const open = win.querySelector('.mp-thumbnail-popup').hidden;
+        closeMenu(win);
+        win.querySelector('.mp-thumbnail-popup').hidden = !open;
+        win.querySelectorAll('[data-thumbnail]').forEach(control => control.setAttribute('aria-expanded', String(open)));
+        preview.hidden = true;
+        return;
+      }
+      if (button.hasAttribute('data-menu')) {
+        const wasOpen = button.getAttribute('aria-expanded') === 'true';
+        const popup = win.querySelector('.mp-popup');
+        const inSubmenu = popup.contains(button);
+        closeMenu(win);
+        if (!wasOpen) {
+          if (!inSubmenu) { const right = button.dataset.menu === 'Menu'; popup.style.left = right ? 'auto' : '6px'; popup.style.right = right ? '6px' : 'auto'; }
+          popup.innerHTML = menuContent[button.dataset.menu]; popup.hidden = false; button.setAttribute('aria-expanded', 'true');
+        }
+        return;
+      }
+      closeMenu(win);
+      if (!button.hasAttribute('data-chapters')) { win.querySelector('.mp-chapters-popup').hidden = true; win.querySelector('[data-chapters]').setAttribute('aria-expanded', 'false'); }
+      if (button.hasAttribute('data-dialog')) { openDialog(name, button.dataset.dialog); return; }
+      if (button.hasAttribute('data-close-dialog')) { win.querySelector('.mp-options-dialog').close(); return; }
+      if (button.hasAttribute('data-native-action')) { win.querySelector('[data-native-status]').textContent = button.dataset.nativeAction; return; }
+      if (button.hasAttribute('data-command')) { act(name, button.dataset.command); return; }
+      if (button.hasAttribute('data-panel')) act(name, button.dataset.panel);
+      if (button.hasAttribute('data-view')) { preview.hidden = true; act(name, button.dataset.view); }
+      if (button.hasAttribute('data-expand-panel')) { state.expanded = !state.expanded; preview.hidden = true; render(name); save(); }
+      if (button.hasAttribute('data-close-panel')) { state.panel = 'none'; state.expanded = false; render(name); save(); }
+      if (button.hasAttribute('data-position')) { state.position = Number(button.dataset.position); render(name); save(); }
+      if (button.hasAttribute('data-track')) { state.trackIndex = Number(button.dataset.track); state.position = 0; render(name); save(); if (button.hasAttribute('data-close-after')) win.querySelector('.mp-options-dialog').close(); }
+      if (button.hasAttribute('data-offset')) { state.subtitleOffset = Math.max(-120, Math.min(120, state.subtitleOffset + Number(button.dataset.offset))); render(name); save(); }
+      if (button.hasAttribute('data-chapters')) { const popup = win.querySelector('.mp-chapters-popup'); popup.hidden = !popup.hidden; preview.hidden = true; button.setAttribute('aria-expanded', String(!popup.hidden)); }
+      if (button.hasAttribute('data-play')) act(name, 'play');
+      if (button.hasAttribute('data-captions')) act(name, 'captions');
+      if (button.hasAttribute('data-rate')) openDialog(name, 'audio');
+      if (button.hasAttribute('data-theater')) act(name, 'theater');
+      if (button.hasAttribute('data-seek')) { state.position = Math.min(1458, Math.max(0, state.position + Number(button.dataset.seek))); render(name); save(); }
+      if (button.hasAttribute('data-mute')) { state.volume = state.volume > 0 ? 0 : 75; render(name); save(); }
+      if (button.hasAttribute('data-clean')) { state.clean = !state.clean; render(name); save(); }
+    });
+    range.addEventListener('input', event => { state.position = Number(event.target.value); render(name); showPreview(state.position); });
+    win.querySelector('.mp-timeline input').addEventListener('change', save);
+    win.querySelector('.mp-volume input').addEventListener('input', event => { state.volume = Number(event.target.value); render(name); });
+    win.querySelector('.mp-volume input').addEventListener('change', save);
+    win.querySelector('.mp-panel-search').addEventListener('input', event => { state.query = event.target.value; render(name); });
+    win.querySelector('.mp-panel-search').addEventListener('change', save);
+    const dialog = win.querySelector('.mp-options-dialog');
+    const updateSetting = event => {
+      const control = event.target;
+      if (control.matches('[data-setting]')) {
+        if (control.type === 'number' && event.type !== 'change') return;
+        const key = control.dataset.setting;
+        const value = control.type === 'checkbox' ? control.checked : ['range', 'number'].includes(control.type) || key === 'rate' ? Number(control.value) : control.value;
+        if (typeof value === 'number' && !Number.isFinite(value)) return;
+        state[key] = value;
+        if (key === 'subtitleTrack') { state.captions = value !== 'Off'; if (state.captions) state.subtitleCleared = false; }
+        render(name); save();
+      }
+      if (control.matches('[data-export-format]')) {
+        const line = 'The valley opens up beyond the ridge.';
+        dialog.querySelector('[data-export-text]').value = control.value === 'TXT' ? line : control.value === 'VTT' ? `WEBVTT\n\n00:03:13.000 --> 00:03:28.000\n${line}` : `1\n00:03:13,000 --> 00:03:28,000\n${line}`;
+      }
+      if (control.matches('[data-local-file]') && control.files.length) dialog.querySelector('[data-file-status]').textContent = `Selected: ${control.files[0].name}`;
+    };
+    dialog.addEventListener('input', updateSetting);
+    dialog.addEventListener('change', updateSetting);
+    win.addEventListener('keydown', event => { if (event.key === 'Escape') { closeMenu(win); preview.hidden = true; win.querySelector('.mp-chapters-popup').hidden = true; win.querySelector('[data-chapters]').setAttribute('aria-expanded', 'false'); } });
+    if (typeof globalThis.Tweak === 'function') {
+      try {
+        const tweak = new Tweak({ container: win, onChange: () => { render(name); save(); } });
+        tweak.addSlider(state, 'panelWidth', { label: 'Side panel width', min: 200, max: 320, step: 10, unit: 'px' });
+        tweak.addToggle(state, 'captions', { label: 'Subtitles' });
+        tweak.addToggle(state, 'ambient', { label: 'Ambient colour' });
+        tweak.addSlider(state, 'ambientStrength', { label: 'Ambient tint', min: 0, max: 25, unit: '%' });
+        if (name === 'cinema') tweak.addToggle(state, 'clean', { label: 'Hide playback controls' });
+      } catch {}
+    }
+  }
+  document.addEventListener('click', event => {
+    const path = event.composedPath();
+    for (const win of Object.values(windows)) {
+      const trigger = path.some(node => node instanceof Element && node.matches('[data-menu], [data-thumbnail], [data-dialog]'));
+      if (!path.includes(win.querySelector('.mp-menubar')) && !(trigger && path.includes(win))) closeMenu(win);
+      if (!path.includes(win.querySelector('.mp-controls'))) { win.querySelector('.mp-chapters-popup').hidden = true; win.querySelector('[data-chapters]').setAttribute('aria-expanded', 'false'); }
+    }
+  });
+  window.addEventListener('openai:set_globals', event => { const globals = event.detail && event.detail.globals; if (globals && globals.widgetState) { restore(globals.widgetState); Object.keys(windows).forEach(render); } });
+})();
+</script>

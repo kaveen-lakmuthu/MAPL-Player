@@ -71,6 +71,8 @@ TestCase {
     }
     function test_recentFilesMenuOpensFileAndCanClearList() {
         appWindow.playbackHistory.recordFile(TestPaths.audioUrl);
+        mouseClick(findChild(appWindow, "fileMenuButton"));
+        tryCompare(findChild(appWindow, "fileMenu"), "opened", true);
         mouseClick(findChild(appWindow, "recentFilesButton"));
         var menu = findChild(appWindow, "recentFilesMenu");
         tryCompare(menu, "opened", true);
@@ -114,6 +116,11 @@ TestCase {
         verify(appWindow.mediaPlayer.playbackState !== MediaPlayer.PlayingState);
     }
     function test_modelManagerListsSupportedModels() {
+        mouseClick(findChild(appWindow, "optionsMenuButton"));
+        tryCompare(findChild(appWindow, "optionsMenu"), "opened", true);
+        var options = findChild(appWindow, "optionsMenu");
+        mouseClick(options.itemAt(1));
+        tryCompare(findChild(appWindow, "subtitleOptionsMenu"), "opened", true);
         mouseClick(findChild(appWindow, "modelsButton"));
         var manager = findChild(appWindow, "modelManager");
         tryCompare(manager, "opened", true);
@@ -218,14 +225,18 @@ TestCase {
             {tag: "recent-files", name: "recentFilesMenu"},
             {tag: "chapters", name: "chaptersPopup"},
             {tag: "subtitles", name: "subtitlePicker"},
-            {tag: "resume", name: "resumeDialog"}
+            {tag: "resume", name: "resumeDialog"},
+            {tag: "subtitle-settings", name: "subtitleSettingsPopup"},
+            {tag: "subtitle-generation", name: "subtitleGenerationPopup"}
         ];
     }
     function test_popupsStayWithPlayer(data) {
-        appWindow.width = 600;
-        appWindow.height = 600;
+        appWindow.width = 640;
+        appWindow.height = 420;
         appWindow.requestActivate();
         tryCompare(appWindow, "active", true);
+        if (data.name === "subtitleSettingsPopup") appWindow.openSubtitleSettings();
+        if (data.name === "subtitleGenerationPopup") appWindow.openSubtitleGenerator();
         if (data.name === "aboutDialog") appWindow.openAboutDialog();
         if (data.name === "playbackOptionsPopup") appWindow.openPlaybackOptions();
         if (data.name === "modelManager") appWindow.openModelManager();
@@ -298,7 +309,7 @@ TestCase {
             {tag: "player", control: "player"},
             {tag: "timeline", control: "timeline"},
             {tag: "volume", control: "volume"},
-            {tag: "sidebar-button", control: "modelsButton"}
+            {tag: "toolbar-button", control: "fileMenuButton"}
         ];
     }
     function test_volumeArrowsAfterFocusingControls(data) {
@@ -308,7 +319,7 @@ TestCase {
         var target = appWindow.contentItem;
         if (data.control === "timeline") target = appWindow.seekSlider;
         if (data.control === "volume") target = appWindow.volumeSlider;
-        if (data.control === "modelsButton") target = findChild(appWindow, "modelsButton");
+        if (data.control === "fileMenuButton") target = findChild(appWindow, "fileMenuButton");
         if (data.control !== "startup") target.forceActiveFocus();
         verify(!appWindow.modalDialogOpen);
         keyClick(Qt.Key_Up);
@@ -447,4 +458,109 @@ TestCase {
         compare(appWindow.subtitleModel, "base");
         verify(appWindow.translateSubtitles);
     }
+    function test_videoUsesWindowWithoutDecorativeMargins() {
+        appWindow.showMediaView("video");
+        var surface = findChild(appWindow, "playerSurface");
+        for (var size of [[1120, 720], [640, 420]]) {
+            appWindow.width = size[0];
+            appWindow.height = size[1];
+            wait(30);
+            var origin = surface.mapToItem(appWindow.contentItem, 0, 0);
+            compare(origin.x, 0);
+            compare(origin.y, 40);
+            compare(surface.width, appWindow.width);
+            compare(surface.height, appWindow.height - 112);
+            compare(surface.color, Qt.color("#000000"));
+            verify(findChild(appWindow, "thumbnailButton").visible);
+            var play = findChild(appWindow, "playPauseButton");
+            verify(play.visible && play.width >= 30 && play.height <= 34);
+        }
+    }
+    function test_panelsPreservePlaybackAndVideoOutput() {
+        appWindow.loadMediaFile(TestPaths.audioUrl);
+        tryVerify(function () { return appWindow.mediaPlayer.seekable; });
+        appWindow.mediaPlayer.pause();
+        appWindow.showMediaView("video");
+        var output = appWindow.videoOutput;
+        var source = appWindow.mediaPlayer.source.toString();
+        mouseClick(findChild(appWindow, "lyricsPanelButton"));
+        compare(appWindow.panelView, "lyrics");
+        compare(appWindow.mediaView, "video");
+        compare(appWindow.currentView, "video");
+        var surface = findChild(appWindow, "playerSurface");
+        var panel = findChild(appWindow, "sidePanel");
+        wait(30);
+        verify(surface.visible && panel.visible);
+        verify(surface.width < appWindow.width);
+        mouseClick(findChild(appWindow, "expandPanelButton"));
+        wait(30);
+        verify(appWindow.panelExpanded && !surface.visible);
+        mouseClick(findChild(appWindow, "expandPanelButton"));
+        wait(30);
+        verify(!appWindow.panelExpanded && surface.visible);
+        mouseClick(findChild(appWindow, "playlistPanelButton"));
+        compare(appWindow.panelView, "playlist");
+        mouseClick(findChild(appWindow, "closePanelButton"));
+        wait(30);
+        verify(!panel.visible && surface.visible);
+        compare(surface.width, appWindow.width);
+        compare(appWindow.videoOutput, output);
+        compare(appWindow.mediaPlayer.source.toString(), source);
+        compare(appWindow.mediaPlayer.playbackState, MediaPlayer.PausedState);
+    }
+    function test_transcriptTypingDoesNotTriggerPlayerShortcuts() {
+        appWindow.requestActivate();
+        appWindow.currentView = "lyrics";
+        appWindow.subtitleChunks = [{start: 0, end: 20, text: "f m n p words"}];
+        var search = findChild(appWindow, "transcriptSearchField");
+        search.forceActiveFocus();
+        keyClick(Qt.Key_F);
+        keyClick(Qt.Key_Space);
+        keyClick(Qt.Key_M);
+        compare(search.text, "f m");
+        compare(appWindow.transcriptSearchQuery, "f m");
+        verify(!appWindow.isMuted);
+        verify(appWindow.visibility !== Window.FullScreen);
+    }
+    function test_seekPreviewKeepsTimeChaptersAndSubtitles() {
+        appWindow.loadMediaFile(TestPaths.audioUrl);
+        tryVerify(function () { return appWindow.mediaPlayer.duration > 0; });
+        appWindow.mediaPlayer.pause();
+        appWindow.subtitleChunks = [{start: 0, end: 60, text: "Preview line"}];
+        appWindow.mediaChapters = [{time: 0, title: "Opening"}];
+        var slider = appWindow.seekSlider;
+        mouseMove(slider, slider.width / 2, slider.height / 2);
+        var preview = findChild(appWindow, "seekPreview");
+        tryCompare(preview, "visible", true);
+        compare(findChild(appWindow, "seekPreviewSubtitle").text, "Preview line");
+        verify(findChild(appWindow, "seekPreviewTime").text !== "0:00");
+        appWindow.openPlaybackOptions();
+        tryCompare(preview, "visible", false);
+    }
+    function test_ambientIsLimitedToChromeAndCanBeDisabledFromMenu() {
+        appWindow.ambientEnabled = true;
+        appWindow.ambientStrength = 1;
+        compare(appWindow.ambientStrength, 0.25);
+        appWindow.ambientSourceColor = "#ffcc00";
+        appWindow.showMediaView("video");
+        compare(findChild(appWindow, "playerSurface").color, Qt.color("#000000"));
+        mouseClick(findChild(appWindow, "optionsMenuButton"));
+        var options = findChild(appWindow, "optionsMenu");
+        tryCompare(options, "opened", true);
+        mouseClick(options.itemAt(2));
+        tryCompare(findChild(appWindow, "appearanceMenu"), "opened", true);
+        mouseClick(findChild(appWindow, "ambientToggle"));
+        verify(!appWindow.ambientEnabled);
+        tryCompare(appWindow, "chromeColor", Qt.color("#1b2835"));
+        appWindow.ambientEnabled = true;
+        appWindow.ambientStrength = 0.12;
+    }
+    function test_generationDialogAvailableWithExistingSubtitles() {
+        appWindow.subtitleChunks = [{start: 0, end: 5, text: "Keep existing lines"}];
+        appWindow.openSubtitleGenerator();
+        tryCompare(findChild(appWindow, "subtitleGenerationPopup"), "opened", true);
+        compare(appWindow.subtitleChunks[0].text, "Keep existing lines");
+        verify(appWindow.modalDialogOpen);
+    }
+
 }

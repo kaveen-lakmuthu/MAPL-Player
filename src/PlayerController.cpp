@@ -56,12 +56,27 @@ void PlayerController::setVideoSink(QVideoSink* sink)
     }
 
     m_videoSink = sink;
+    resetVideoFrame();
 
     if (m_videoSink) {
         connect(m_videoSink, &QVideoSink::videoFrameChanged, this, &PlayerController::handleVideoFrame);
     }
 
     emit videoSinkChanged();
+}
+
+bool PlayerController::hasVideoFrame() const
+{
+    return !m_lastImage.isNull();
+}
+
+void PlayerController::resetVideoFrame()
+{
+    const bool hadFrame = hasVideoFrame();
+    m_lastImage = QImage();
+    m_lastFrameTime = 0;
+    if (hadFrame)
+        emit hasVideoFrameChanged();
 }
 
 QString PlayerController::currentTrackTitle() const
@@ -103,8 +118,16 @@ bool PlayerController::loadLoop() const
 
 void PlayerController::captureThumbnail(const QString &trackUrl)
 {
-    if (m_lastImage.isNull())
+    if (trackUrl.isEmpty() || !hasVideoFrame())
         return;
+
+    // Color sampling is throttled. Capture the displayed frame rather than
+    // the earlier frame retained for ambient color extraction.
+    if (m_videoSink) {
+        const QImage currentImage = m_videoSink->videoFrame().toImage();
+        if (!currentImage.isNull())
+            m_lastImage = currentImage;
+    }
 
     QByteArray ba;
     QBuffer buffer(&ba);
@@ -149,11 +172,14 @@ void PlayerController::handleVideoFrame(const QVideoFrame &frame)
     if (!cloneFrame.map(QVideoFrame::ReadOnly))
         return;
 
-    m_lastImage = cloneFrame.toImage().copy();
+    const bool hadFrame = hasVideoFrame();
+    const QImage image = cloneFrame.toImage().copy();
     cloneFrame.unmap();
-
-    if (m_lastImage.isNull())
+    if (image.isNull())
         return;
+    m_lastImage = image;
+    if (!hadFrame)
+        emit hasVideoFrameChanged();
 
     // Sub-sample image to find average color quickly
     long long r = 0, g = 0, b = 0;

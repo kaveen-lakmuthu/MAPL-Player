@@ -19,6 +19,7 @@ class PlayerController : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QVideoSink* videoSink READ videoSink WRITE setVideoSink NOTIFY videoSinkChanged)
+    Q_PROPERTY(bool hasVideoFrame READ hasVideoFrame NOTIFY hasVideoFrameChanged)
     Q_PROPERTY(QString currentTrackTitle READ currentTrackTitle WRITE setCurrentTrackTitle NOTIFY currentTrackTitleChanged)
     QML_ELEMENT // Expose to QML automatically in Qt6
 
@@ -28,6 +29,8 @@ public:
 
     QVideoSink* videoSink() const;
     void setVideoSink(QVideoSink* sink);
+    bool hasVideoFrame() const;
+    Q_INVOKABLE void resetVideoFrame();
 
     QString currentTrackTitle() const;
     void setCurrentTrackTitle(const QString &title);
@@ -58,6 +61,7 @@ signals:
     void embeddedSubtitleReady(int requestId, const QString &fileUrl);
     void embeddedSubtitleError(int requestId, const QString &message);
     void videoSinkChanged();
+    void hasVideoFrameChanged();
     void currentTrackTitleChanged();
     void backgroundColorChanged(const QString &hexColor);
     void thumbnailCaptured(const QString &trackUrl, const QString &base64Image);

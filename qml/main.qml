@@ -4,6 +4,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
 import QtMultimedia
+import QtCore
 import MAPLPlayerNative
 import "components"
 import "dialogs"
@@ -13,16 +14,31 @@ import "logic/SubtitleUtils.js" as SubtitleUtils
 
 ApplicationWindow {
     id: window
-    width: 850
-    height: 700
-    minimumWidth: 600
-    minimumHeight: 600
+    width: 1120
+    height: 720
+    minimumWidth: 640
+    minimumHeight: 420
     visible: true
-    title: "MAPL Player - Native C++"
+    title: currentTrackIndex >= 0 && playlist[currentTrackIndex] ? playlist[currentTrackIndex].title + " — MAPL" : "MAPL"
     font.family: "Inter, Noto Sans Sinhala, Noto Sans, sans-serif"
 
+    palette.window: "#18222d"
+    palette.base: "#121c26"
+    palette.alternateBase: "#202d3a"
+    palette.text: "#edf3fa"
+    palette.windowText: "#edf3fa"
+    palette.button: "#293947"
+    palette.buttonText: "#edf3fa"
+    palette.highlight: "#355c79"
+    palette.highlightedText: "#ffffff"
+    palette.mid: "#465b6e"
+    palette.dark: "#101820"
+    palette.light: "#52687c"
+    font.pixelSize: 13
+
     property bool desktopControlsEnabled: true
-    readonly property bool modalDialogOpen: playbackOptionsPopup.visible || resumeDialog.visible || modelManager.visible || recentFilesMenu.visible || aboutModal.visible || subtitlePickerPopup.visible || chaptersPopup.visible || fileDialogs.dialogOpen
+    readonly property bool textInputFocused: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
+    readonly property bool modalDialogOpen: playbackOptionsPopup.visible || resumeDialog.visible || modelManager.visible || recentFilesMenu.visible || aboutModal.visible || subtitlePickerPopup.visible || chaptersPopup.visible || fileDialogs.dialogOpen || subtitleSettings.visible || generatorDialog.visible || playerLayout.menuOpen
     onModalDialogOpenChanged: {
         if (modalDialogOpen)
             controlsVisible = true;
@@ -226,18 +242,55 @@ ApplicationWindow {
         return result;
     }
 
-    // View state: 'audio' | 'video' | 'lyrics' | 'playlist'
+    // currentView remains compatible with file-loading and full-view commands.
+    // mediaView is independent, so opening a side panel never replaces the video.
     property string currentView: "audio"
+    property string mediaView: "audio"
+    property string panelView: ""
+    property bool panelExpanded: false
     property bool sidebarOpen: false
-    property bool sidebarExpanded: true
-
+    property bool sidebarExpanded: false
     onCurrentViewChanged: {
-        if (currentView !== "video") {
-            sidebarExpanded = true;
-        } else if (player.playbackState === MediaPlayer.PlayingState) {
-            sidebarExpanded = false;
+        if (currentView === "audio" || currentView === "video") {
+            mediaView = currentView;
+            panelExpanded = false;
+        } else if (currentView === "lyrics" || currentView === "playlist") {
+            panelView = currentView;
+            panelExpanded = true;
+        }
+        controlsVisible = true;
+    }
+    function showMediaView(view) {
+        currentView = view;
+        mediaView = view;
+        panelExpanded = false;
+    }
+    function togglePanel(view) {
+        if (panelView === view) {
+            closePanel();
+        } else {
+            currentView = mediaView;
+            panelExpanded = false;
+            panelView = view;
         }
     }
+    function closePanel() {
+        currentView = mediaView;
+        panelExpanded = false;
+        panelView = "";
+    }
+    function setPanelExpanded(expanded) {
+        if (expanded && panelView !== "") currentView = panelView;
+        else currentView = mediaView;
+        panelExpanded = expanded && panelView !== "";
+    }
+    function openSubtitleSettings() { subtitleSettings.open(); }
+    function openSubtitleGenerator() { generatorDialog.open(); }
+    function captureCurrentThumbnail() {
+        if (currentTrackIndex >= 0 && player.hasVideo && controller.hasVideoFrame)
+            controller.captureThumbnail(playlist[currentTrackIndex].url);
+    }
+
     property string currentThumbnailDataUrl: ""
     property string currentTimelinePreviewSheet: ""
     property bool controlsVisible: true
@@ -286,7 +339,7 @@ ApplicationWindow {
     Timer {
         id: controlsHideTimer
         interval: 3000
-        running: window.visibility === Window.FullScreen && !playerLayout.controlsHovered && !window.modalDialogOpen
+        running: window.visibility === Window.FullScreen && window.mediaView === "video" && !window.panelExpanded && !playerLayout.controlsHovered && !window.modalDialogOpen
         repeat: false
         onTriggered: {
             controlsVisible = false;
@@ -348,75 +401,82 @@ ApplicationWindow {
     // --- Keyboard Shortcuts ---
     Shortcut {
         sequence: "Space"
-        enabled: !window.modalDialogOpen
+        enabled: !window.modalDialogOpen && !window.textInputFocused
         onActivated: togglePlayPause()
     }
 
     Shortcut {
         sequence: "f"
-        enabled: !window.modalDialogOpen
+        enabled: !window.modalDialogOpen && !window.textInputFocused
         onActivated: toggleFullscreen()
     }
 
     Shortcut {
         sequence: "Right"
-        enabled: !window.modalDialogOpen
+        enabled: !window.modalDialogOpen && !window.textInputFocused
         onActivated: seekRelative(5)
     }
 
     Shortcut {
         sequence: "Left"
-        enabled: !window.modalDialogOpen
+        enabled: !window.modalDialogOpen && !window.textInputFocused
         onActivated: seekRelative(-5)
     }
 
     Shortcut {
         sequence: "Up"
-        enabled: !window.modalDialogOpen
+        enabled: !window.modalDialogOpen && !window.textInputFocused
         onActivated: changeVolume(5)
     }
 
     Shortcut {
         sequence: "Down"
-        enabled: !window.modalDialogOpen
+        enabled: !window.modalDialogOpen && !window.textInputFocused
         onActivated: changeVolume(-5)
     }
 
     Shortcut {
         sequence: "m"
-        enabled: !window.modalDialogOpen
+        enabled: !window.modalDialogOpen && !window.textInputFocused
         onActivated: toggleMute()
     }
 
     Shortcut {
         sequence: "n"
-        enabled: !window.modalDialogOpen
+        enabled: !window.modalDialogOpen && !window.textInputFocused
         onActivated: playNext()
     }
 
     Shortcut {
         sequence: "p"
-        enabled: !window.modalDialogOpen
+        enabled: !window.modalDialogOpen && !window.textInputFocused
         onActivated: playPrev()
     }
 
-    // Dynamic background colors updated from C++ PlayerController
-    property color bgBaseColor: "#0f172a"      // Slate-900 (Default)
-    property color containerColor: "#1e293b"   // Slate-800 (Default)
-    property color accentColor: "#3b82f6"      // Blue-500 (Default)
-
-    // Custom background transitions
-    Behavior on bgBaseColor {
-        ColorAnimation {
-            duration: 600
-            easing.type: Easing.InOutQuad
-        }
+    // Only existing chrome receives a small, smoothly changing ambient tint.
+    property color bgBaseColor: "#151e28"
+    property color containerColor: "#202c38"
+    property color accentColor: "#86b7ec"
+    property color ambientSourceColor: "#526a85"
+    property bool ambientEnabled: true
+    property real ambientStrength: 0.12
+    property bool visualizerEnabled: true
+    property bool reduceMotion: false
+    onAmbientStrengthChanged: ambientStrength = Math.max(0, Math.min(0.25, ambientStrength))
+    property color chromeColor: {
+        var base = Qt.color("#1b2835");
+        var amount = ambientEnabled && !reduceMotion ? Math.max(0, Math.min(0.25, ambientStrength)) : 0;
+        return Qt.rgba(base.r * (1 - amount) + ambientSourceColor.r * amount,
+                       base.g * (1 - amount) + ambientSourceColor.g * amount,
+                       base.b * (1 - amount) + ambientSourceColor.b * amount, 1);
     }
-    Behavior on containerColor {
-        ColorAnimation {
-            duration: 600
-            easing.type: Easing.InOutQuad
-        }
+    Behavior on chromeColor { ColorAnimation { duration: window.reduceMotion ? 0 : 700; easing.type: Easing.InOutQuad } }
+    Settings {
+        category: "DesktopUI"
+        property alias ambientEnabled: window.ambientEnabled
+        property alias ambientStrength: window.ambientStrength
+        property alias visualizerEnabled: window.visualizerEnabled
+        property alias reduceMotion: window.reduceMotion
     }
 
     // --- C++ Backend Elements ---
@@ -424,24 +484,7 @@ ApplicationWindow {
         id: controller
         videoSink: window.videoOutput.videoSink
 
-        onBackgroundColorChanged: hexColor => {
-            var c = Qt.color(hexColor);
-            // Calculate perceived luminance (0.0 to 1.0)
-            var luminance = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
-
-            // Tint and heavily darken the background base color based on luminance
-            // If the source color is extremely light, we darken it much more aggressively
-            var bgDarken = luminance > 0.7 ? 5.5 : (luminance > 0.5 ? 4.5 : 3.0);
-            bgBaseColor = Qt.darker(hexColor, bgDarken);
-
-            // Styled panel background: semi-transparent, very dark tint of the color
-            // This guarantees high contrast for white text/labels under any dynamic video/album art
-            var panelDarken = luminance > 0.7 ? 4.5 : (luminance > 0.5 ? 3.5 : 2.2);
-            var darkTint = Qt.darker(hexColor, panelDarken);
-            containerColor = Qt.rgba(darkTint.r, darkTint.g, darkTint.b, 0.75);
-
-            accentColor = hexColor;
-        }
+        onBackgroundColorChanged: hexColor => ambientSourceColor = hexColor
 
         onThumbnailCaptured: (trackUrl, base64) => {
             currentThumbnailDataUrl = "data:image/png;base64," + base64;
@@ -633,7 +676,7 @@ ApplicationWindow {
     // --- Drag and Drop Visual Overlay ---
     Rectangle {
         anchors.fill: parent
-        color: Qt.rgba(15, 23, 42, 0.85) // Slate-900 with high opacity
+        color: Qt.rgba(0.06, 0.09, 0.13, 0.90) // Slate-900 with high opacity
         z: 9999
         visible: globalDropArea.containsDrag
 
@@ -651,8 +694,8 @@ ApplicationWindow {
             spacing: 16
 
             Text {
-                text: "📂"
-                font.pixelSize: 48
+                text: "MAPL"
+                font.pixelSize: 22
                 Layout.alignment: Qt.AlignHCenter
             }
             Text {
@@ -677,28 +720,8 @@ ApplicationWindow {
         app: window
     }
 
-    // 3. Sliding Menu Drawer (For Loaders)
-    FileDrawer {
-        id: sidebarDrawer
-        app: window
-    }
-
-    // Overlay (anchored next to the leftPanel so the vertical sidebar stays bright and matches the drawer)
-    Rectangle {
-        anchors.left: parent.left
-        anchors.leftMargin: playerLayout.sidebarWidth
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        color: "#90000000"
-        z: 999
-        visible: sidebarOpen
-
-        MouseArea {
-            anchors.fill: parent
-            onClicked: sidebarOpen = false
-        }
-    }
+    SubtitleSettingsPopup { id: subtitleSettings; app: window }
+    SubtitleGenerationPopup { id: generatorDialog; app: window }
 
     // About Modal
     AboutDialog {
@@ -819,9 +842,7 @@ ApplicationWindow {
     }
 
     function resetTheme() {
-        bgBaseColor = "#0f172a";
-        containerColor = "#1e293b";
-        accentColor = "#3b82f6";
+        ambientSourceColor = "#526a85";
     }
 
     function parseXspf(xmlString) {

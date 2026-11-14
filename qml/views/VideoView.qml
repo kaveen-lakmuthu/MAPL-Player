@@ -10,7 +10,7 @@ Item {
     property alias output: videoOutput
 
     anchors.fill: parent
-    visible: app.currentView === "video"
+    visible: app.mediaView === "video"
 
     VideoOutput {
         id: videoOutput

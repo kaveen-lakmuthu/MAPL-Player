@@ -2,331 +2,109 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtMultimedia
+import "../components"
 
 Item {
     id: root
     required property var app
-
+    readonly property var track: app.currentTrackIndex >= 0 ? app.playlist[app.currentTrackIndex] : null
     anchors.fill: parent
-    visible: app.currentView === "audio"
+    visible: app.mediaView === "audio"
 
-    // Blurred ambient art backdrop
-    Image {
+    ColumnLayout {
         anchors.fill: parent
-        fillMode: Image.PreserveAspectCrop
-        visible: app.currentThumbnailDataUrl !== ""
-        source: app.currentThumbnailDataUrl
-        opacity: 0.12
-        layer.enabled: true
-        layer.effect: null  // no shader needed; opacity alone creates a subtle glow
-    }
-
-    RowLayout {
-        anchors.fill: parent
-        anchors.margins: 32
-        spacing: 40
-
-        // ── Left: large cover art ───────────────────
-        Rectangle {
-            Layout.preferredWidth: Math.min(parent.height * 0.72, 340)
-            Layout.preferredHeight: Layout.preferredWidth
-            Layout.alignment: Qt.AlignVCenter
-            color: "#090d16"
-            radius: 20
-            border.color: app.accentColor !== "" ? app.accentColor : "#334155"
-            border.width: 2
-            clip: true
-
-            // Gradient placeholder
+        anchors.margins: 20
+        spacing: 12
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 18
             Rectangle {
-                anchors.fill: parent
-                visible: app.currentThumbnailDataUrl === ""
-                gradient: Gradient {
-                    GradientStop {
-                        position: 0.0
-                        color: "#1e293b"
-                    }
-                    GradientStop {
-                        position: 1.0
-                        color: "#090d16"
+                Layout.preferredWidth: root.height < 420 ? 104 : 144
+                Layout.preferredHeight: Layout.preferredWidth
+                color: "#263746"
+                radius: 5
+                clip: true
+                Image { anchors.fill: parent; source: app.currentThumbnailDataUrl; fillMode: Image.PreserveAspectCrop }
+                PlayerIcon { anchors.centerIn: parent; width: 38; height: 38; name: "audio"; ink: "#9aafc3"; visible: app.currentThumbnailDataUrl === "" }
+            }
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Text { text: "MAPL / AUDIO"; color: "#9fb9d1"; font.pixelSize: 10; font.letterSpacing: 1.2 }
+                Text {
+                    Layout.fillWidth: true
+                    text: root.track ? root.track.title : "Open something to play"
+                    color: "#edf3fa"
+                    font.pixelSize: 18
+                    font.bold: true
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                }
+                Text { Layout.fillWidth: true; text: root.track ? root.track.artist || "Unknown artist" : "Drop media here, or use File to open it."; color: "#b4c5d6"; font.pixelSize: 12; elide: Text.ElideRight }
+                Text {
+                    visible: root.track !== null && root.track !== undefined
+                    text: root.track ? root.track.url.toString().split(".").pop().toUpperCase() + "  ·  " + app.formatTime(app.mediaPlayer.duration / 1000) + "  ·  Track " + (app.currentTrackIndex + 1) + " of " + app.playlist.length : ""
+                    color: "#a4b7ca"
+                    font.pixelSize: 11
+                }
+                Row {
+                    spacing: 3
+                    height: 16
+                    visible: app.visualizerEnabled && !app.reduceMotion && app.mediaPlayer.playbackState === MediaPlayer.PlayingState
+                    Repeater {
+                        model: 9
+                        Rectangle {
+                            width: 3; height: 5; radius: 1; color: "#86b7ec"
+                            anchors.bottom: parent.bottom
+                            SequentialAnimation on height {
+                                loops: Animation.Infinite
+                                running: root.visible && app.visualizerEnabled && !app.reduceMotion && app.mediaPlayer.playbackState === MediaPlayer.PlayingState
+                                NumberAnimation { to: 16; duration: 240 + index * 40 }
+                                NumberAnimation { to: 4; duration: 290 + index * 30 }
+                            }
+                        }
                     }
                 }
-            }
-            Image {
-                anchors.fill: parent
-                fillMode: Image.PreserveAspectCrop
-                visible: app.currentThumbnailDataUrl !== ""
-                source: app.currentThumbnailDataUrl
-            }
-            Text {
-                anchors.centerIn: parent
-                text: "🎵"
-                font.pixelSize: 96
-                visible: app.currentThumbnailDataUrl === ""
-                opacity: 0.4
+                RowLayout {
+                    visible: !root.track
+                    DesktopButton { text: "Open media…"; onClicked: app.openMediaDialog() }
+                    DesktopButton { text: "Recent files…"; onClicked: app.openRecentFiles() }
+                }
             }
         }
-
-        // ── Right: metadata + equaliser bars ────────
-        ColumnLayout {
+        DesktopButton {
+            Layout.fillWidth: true
+            implicitHeight: 52
+            text: app.activeSubtitleText !== "" ? app.activeSubtitleText : app.currentLyrics !== "" ? "Plain lyrics loaded · open Lyrics & Subs" : "Lyrics & Subs · load a file or generate timed lines"
+            hint: "Open live lyrics and subtitles"
+            onClicked: app.togglePanel("lyrics")
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            Text { text: "QUEUE · " + app.playlist.length; color: "#a4b7ca"; font.pixelSize: 10; font.letterSpacing: 1; Layout.fillWidth: true }
+            DesktopButton {
+                visible: app.playlist.length > 1
+                glyph: "next"
+                text: "Up next"
+                hint: app.playlist.length > 0 ? app.playlist[(app.currentTrackIndex + 1) % app.playlist.length].title : "Up next"
+                onClicked: app.playNext()
+            }
+        }
+        ListView {
+            id: queue
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 12
-
-            Item {
-                Layout.fillHeight: true
-            }
-
-            Text {
-                text: "NOW PLAYING"
-                color: app.accentColor !== "" ? app.accentColor : "#3b82f6"
-                font.pixelSize: 10
-                font.bold: true
-                font.letterSpacing: 3.0
-            }
-
-            Text {
-                id: currentTrackTitleText
-                text: (app.currentTrackIndex >= 0 && app.playlist[app.currentTrackIndex]) ? app.playlist[app.currentTrackIndex].title : "No file loaded"
-                color: "white"
-                font.pixelSize: 22
-                font.bold: true
-                wrapMode: Text.WordWrap
-                Layout.fillWidth: true
-                maximumLineCount: 2
-                elide: Text.ElideRight
-            }
-
-            Text {
-                text: (app.currentTrackIndex >= 0 && app.playlist[app.currentTrackIndex]) ? (app.playlist[app.currentTrackIndex].artist || "Unknown Artist") : ""
-                color: "#94a3b8"
-                font.pixelSize: 14
-                Layout.fillWidth: true
-                elide: Text.ElideRight
-                visible: text !== ""
-            }
-
-            // Mini equaliser visualiser (animated bars)
-            Row {
-                spacing: 5
-                Layout.topMargin: 4
-                visible: app.mediaPlayer.playbackState === MediaPlayer.PlayingState
-
-                Repeater {
-                    model: 9
-                    delegate: Rectangle {
-                        width: 5
-                        radius: 3
-                        color: app.accentColor !== "" ? app.accentColor : "#3b82f6"
-                        opacity: 0.85
-
-                        property real barPhase: index * 0.7
-                        property real barHeight: 8 + 24 * Math.abs(Math.sin((Date.now() / 400.0) + barPhase))
-                        height: barHeight
-                        anchors.bottom: parent ? parent.bottom : undefined
-
-                        NumberAnimation on barHeight {
-                            from: 8
-                            to: 32
-                            duration: 350 + index * 60
-                            easing.type: Easing.SineCurve
-                            loops: Animation.Infinite
-                            running: app.mediaPlayer.playbackState === MediaPlayer.PlayingState
-                        }
-                    }
-                }
-
-                // Fixed height wrapper so bars anchor to bottom
-                Item {
-                    width: 0
-                    height: 32
-                }
-            }
-
-            Item {
-                height: 10
-            }
-
-            // Live Subtitles Card
-            Rectangle {
-                id: liveSubsCard
-                Layout.fillWidth: true
-                Layout.preferredHeight: 92
-                color: Qt.rgba(15 / 255.0, 23 / 255.0, 42 / 255.0, 0.45)
-                radius: 12
-                border.color: app.accentColor !== "" ? Qt.rgba(Qt.color(app.accentColor).r, Qt.color(app.accentColor).g, Qt.color(app.accentColor).b, 0.25) : "#1e293b"
-                border.width: 1
-
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    onClicked: app.currentView = "lyrics"
-                    cursorShape: Qt.PointingHandCursor
-                }
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 4
-
-                    Text {
-                        text: "📝 LIVE SUBTITLES"
-                        color: app.accentColor !== "" ? app.accentColor : "#3b82f6"
-                        font.pixelSize: 9
-                        font.bold: true
-                        font.letterSpacing: 1.5
-                    }
-
-                    Text {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        text: app.activeSubtitleText !== "" ? app.activeSubtitleText : (app.currentLyrics !== "" ? "Plain lyrics loaded. Click to view." : "No subtitles loaded. Click to generate.")
-                        color: app.activeSubtitleText !== "" ? "white" : "#64748b"
-                        font.bold: app.activeSubtitleText !== ""
-                        font.pixelSize: 13
-                        wrapMode: Text.WordWrap
-                        elide: Text.ElideRight
-                        maximumLineCount: 2
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                }
-            }
-
-            // Up Next Card
-            Rectangle {
-                id: upNextCard
-                Layout.fillWidth: true
-                Layout.preferredHeight: 76
-                color: Qt.rgba(15 / 255.0, 23 / 255.0, 42 / 255.0, 0.35)
-                radius: 12
-                border.color: "#1e293b"
-                border.width: 1
-                visible: app.playlist.length > 1
-
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    onClicked: app.playNext()
-                    cursorShape: Qt.PointingHandCursor
-                }
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 4
-
-                    Text {
-                        text: "📋 UP NEXT"
-                        color: "#64748b"
-                        font.pixelSize: 9
-                        font.bold: true
-                        font.letterSpacing: 1.5
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        Text {
-                            text: "⏭️"
-                            font.pixelSize: 14
-                            Layout.alignment: Qt.AlignVCenter
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 2
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: {
-                                    var nextIdx = (app.currentTrackIndex + 1) % app.playlist.length;
-                                    return app.playlist[nextIdx] ? app.playlist[nextIdx].title : "End of Playlist";
-                                }
-                                color: "white"
-                                font.bold: true
-                                font.pixelSize: 12
-                                elide: Text.ElideRight
-                            }
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: {
-                                    var nextIdx = (app.currentTrackIndex + 1) % app.playlist.length;
-                                    return app.playlist[nextIdx] ? (app.playlist[nextIdx].artist || "Unknown Artist") : "";
-                                }
-                                color: "#64748b"
-                                font.pixelSize: 11
-                                elide: Text.ElideRight
-                                visible: text !== ""
-                            }
-                        }
-                    }
-                }
-            }
-
-            Item {
-                height: 10
-            }
-
-            // Playback stats row
-            RowLayout {
-                spacing: 20
-                Layout.fillWidth: true
-
-                Column {
-                    spacing: 3
-                    Text {
-                        text: "FORMAT"
-                        color: "#64748b"
-                        font.pixelSize: 9
-                        font.letterSpacing: 1.5
-                    }
-                    Text {
-                        text: {
-                            var url = (app.currentTrackIndex >= 0 && app.playlist[app.currentTrackIndex]) ? app.playlist[app.currentTrackIndex].url : "";
-                            var ext = url.split('.').pop().toUpperCase();
-                            return ext || "—";
-                        }
-                        color: "#cbd5e1"
-                        font.pixelSize: 13
-                        font.bold: true
-                    }
-                }
-                Column {
-                    spacing: 3
-                    Text {
-                        text: "DURATION"
-                        color: "#64748b"
-                        font.pixelSize: 9
-                        font.letterSpacing: 1.5
-                    }
-                    Text {
-                        text: app.mediaPlayer.duration > 0 ? app.formatTime(app.mediaPlayer.duration / 1000) : "—"
-                        color: "#cbd5e1"
-                        font.pixelSize: 13
-                        font.bold: true
-                    }
-                }
-                Column {
-                    spacing: 3
-                    Text {
-                        text: "TRACK"
-                        color: "#64748b"
-                        font.pixelSize: 9
-                        font.letterSpacing: 1.5
-                    }
-                    Text {
-                        text: app.currentTrackIndex >= 0 ? (app.currentTrackIndex + 1) + " / " + app.playlist.length : "—"
-                        color: "#cbd5e1"
-                        font.pixelSize: 13
-                        font.bold: true
-                    }
-                }
-            }
-
-            Item {
-                Layout.fillHeight: true
+            clip: true
+            model: app.playlist
+            ScrollBar.vertical: ScrollBar {}
+            delegate: ItemDelegate {
+                id: queueTrack
+                width: queue.width
+                height: 34
+                contentItem: Text { text: (index + 1) + ".  " + modelData.title; color: index === app.currentTrackIndex ? "#a4cfff" : "#c2ceda"; font.pixelSize: 12; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter }
+                background: Rectangle { radius: 4; color: index === app.currentTrackIndex ? "#2c4155" : queueTrack.hovered ? "#263746" : "transparent" }
+                onClicked: { app.loadTrack(index); app.playCurrentTrack(); }
             }
         }
     }

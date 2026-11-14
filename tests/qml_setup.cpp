@@ -53,6 +53,9 @@ class TestSetup : public QObject
 public slots:
     void applicationAvailable()
     {
+        QCoreApplication::setOrganizationName("MAPL Tests");
+        QCoreApplication::setOrganizationDomain("tests.mapl.local");
+        QCoreApplication::setApplicationName("MAPLPlayerNativeTests");
         QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, settings.path());
         QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settings.path());
         qputenv("XDG_CACHE_HOME", settings.path().toUtf8());

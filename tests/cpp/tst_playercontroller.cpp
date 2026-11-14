@@ -3,6 +3,7 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QUrl>
+#include <QVideoFrameFormat>
 #include "PlayerController.h"
 #include "BackgroundProcess.h"
 #include "ProcessFixture.h"
@@ -10,7 +11,47 @@
 class PlayerControllerTest : public QObject
 {
     Q_OBJECT
+    QTemporaryDir settingsDirectory;
 private slots:
+    void initTestCase()
+    {
+        QVERIFY(settingsDirectory.isValid());
+        QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, settingsDirectory.path());
+    }
+    void thumbnailRequiresAFrameFromTheCurrentTrack()
+    {
+        PlayerController controller;
+        QSignalSpy available(&controller, &PlayerController::hasVideoFrameChanged);
+        QSignalSpy captured(&controller, &PlayerController::thumbnailCaptured);
+        QVERIFY(!controller.hasVideoFrame());
+        controller.captureThumbnail("file:///first.mp4");
+        QCOMPARE(captured.count(), 0);
+
+        QVideoFrame frame(QVideoFrameFormat(QSize(16, 16), QVideoFrameFormat::Format_RGBA8888));
+        QVERIFY(frame.map(QVideoFrame::WriteOnly));
+        QImage pixels(frame.bits(0), 16, 16, frame.bytesPerLine(0), QImage::Format_RGBA8888);
+        pixels.fill(QColor("#d04030"));
+        frame.unmap();
+        controller.handleVideoFrame(frame);
+        QVERIFY(controller.hasVideoFrame());
+        QCOMPARE(available.count(), 1);
+        controller.captureThumbnail("file:///first.mp4");
+        QCOMPARE(captured.count(), 1);
+        const QString firstCover = controller.getThumbnail("file:///first.mp4");
+        QCOMPARE(QImage::fromData(QByteArray::fromBase64(firstCover.toLatin1())).pixelColor(0, 0), QColor("#d04030"));
+
+        controller.resetVideoFrame();
+        QVERIFY(!controller.hasVideoFrame());
+        QCOMPARE(available.count(), 2);
+        controller.captureThumbnail("file:///second.mp4");
+        QCOMPARE(captured.count(), 1);
+        QVERIFY(controller.getThumbnail("file:///second.mp4").isEmpty());
+        QCOMPARE(controller.getThumbnail("file:///first.mp4"), firstCover);
+        // Resetting a track also resets the sampling throttle for its first frame.
+        controller.handleVideoFrame(frame);
+        QVERIFY(controller.hasVideoFrame());
+        QCOMPARE(available.count(), 3);
+    }
     void asyncChapters()
     {
         ProcessFixture fixture(250, 0, R"({"chapters":[{"start_time":"12.5","tags":{"title":"Opening"}},{"start_time":"25"}]})");
