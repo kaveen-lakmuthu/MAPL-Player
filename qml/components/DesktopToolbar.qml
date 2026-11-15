@@ -81,7 +81,7 @@ Rectangle {
                     Basic.MenuItem { text: "Appearance, timing and export…"; onTriggered: app.openSubtitleSettings() }
                     Basic.MenuItem { text: "Choose subtitle track…"; enabled: app.availableSubtitles.length > 0; onTriggered: app.subtitlePickerVisible = true }
                     Basic.MenuItem { text: "Generate lyrics and subtitles…"; onTriggered: app.openSubtitleGenerator() }
-                    Basic.MenuItem { objectName: "modelsButton"; text: app.modelDownloader.isBusy ? "Whisper models · working…" : "Whisper models…"; onTriggered: app.openModelManager() }
+                    Basic.MenuItem { objectName: "modelsButton"; text: "Whisper models…"; onTriggered: app.openModelManager() }
                     Basic.MenuItem { text: "Clear lyrics and subtitles"; enabled: app.subtitleChunks.length > 0 || app.currentLyrics !== ""; onTriggered: app.clearSubtitles() }
                 }
                 Basic.Menu {

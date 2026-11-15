@@ -19,6 +19,7 @@ PlaybackOptions::PlaybackOptions(QObject *parent) : QObject(parent)
 
 PlaybackOptions::~PlaybackOptions()
 {
+    blockSignals(true);
     releaseDelayedAudio();
 }
 
@@ -63,6 +64,7 @@ void PlaybackOptions::setPlayer(QMediaPlayer *player)
         });
     }
     emit playerChanged();
+    emit audiblePlayerChanged();
     emit audioTracksChanged();
 }
 
@@ -183,6 +185,7 @@ void PlaybackOptions::setAudioDelayMs(int delay)
             m_player->setAudioOutput(nullptr);
             m_player->setAudioOutput(m_clockOutput.get());
             m_audio->setSource(m_player->source());
+            emit audiblePlayerChanged();
         }
         synchronizeAudio(true);
     }
@@ -208,6 +211,7 @@ void PlaybackOptions::releaseDelayedAudio()
             m_player->setAudioOutput(m_mainOutput);
         }
         m_clockOutput.reset();
+        emit audiblePlayerChanged();
     }
 }
 

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(MAPLPlayerNative VERSION 2.0.1 LANGUAGES CXX C)
+project(MAPLPlayerNative VERSION 2.3.1 LANGUAGES CXX C)
 set(MAPL_VERSION_STRING "${PROJECT_VERSION}-alpha")
 
 set(CMAKE_CXX_STANDARD 20)
@@ -45,6 +45,8 @@ if(MAPL_BUILD_APP)
 
     # Project sources
     set(SOURCES
+        src/AudioLevelMeter.h
+        src/AudioLevelMeter.cpp
         src/PlaybackOptions.h
         src/PlaybackOptions.cpp
         src/MprisService.h
@@ -86,6 +88,8 @@ if(MAPL_BUILD_APP)
 
     # Preserve the resource layout used by relative QML and JavaScript imports.
     set(QML_SOURCES
+        qml/components/AudioVisualizer.qml
+        qml/components/BackgroundTaskIndicator.qml
         qml/components/DesktopButton.qml
         qml/components/DesktopToolbar.qml
         qml/components/PlayerIcon.qml
@@ -101,6 +105,7 @@ if(MAPL_BUILD_APP)
         qml/components/VolumeControl.qml
         qml/components/VolumeWheelHandler.qml
         qml/dialogs/SubtitleSettingsPopup.qml
+        qml/dialogs/BackgroundTasksPopup.qml
         qml/dialogs/SubtitleGenerationPopup.qml
         qml/dialogs/PlaybackOptionsPopup.qml
         qml/dialogs/PlayerPopup.qml
@@ -113,6 +118,8 @@ if(MAPL_BUILD_APP)
         qml/dialogs/MediaDialogs.qml
         qml/dialogs/SubtitlePicker.qml
         qml/logic/MediaUtils.js
+        qml/logic/BackgroundTasks.qml
+        qml/logic/DesktopLayout.qml
         qml/logic/PlaybackMemory.qml
         qml/logic/PlaybackSession.qml
         qml/logic/SubtitleJobs.qml

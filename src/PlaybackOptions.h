@@ -14,6 +14,7 @@ class PlaybackOptions : public QObject
     Q_OBJECT
     QML_ELEMENT
     Q_PROPERTY(QMediaPlayer *player READ player WRITE setPlayer NOTIFY playerChanged)
+    Q_PROPERTY(QMediaPlayer *audiblePlayer READ audiblePlayer NOTIFY audiblePlayerChanged)
     Q_PROPERTY(QAudioOutput *audioOutput READ audioOutput WRITE setAudioOutput NOTIFY playerChanged)
     Q_PROPERTY(QVariantList audioTracks READ audioTracks NOTIFY audioTracksChanged)
     Q_PROPERTY(int activeAudioTrack READ activeAudioTrack NOTIFY audioTracksChanged)
@@ -24,6 +25,7 @@ public:
     explicit PlaybackOptions(QObject *parent = nullptr);
     ~PlaybackOptions() override;
     QMediaPlayer *player() const { return m_player; }
+    QMediaPlayer *audiblePlayer() const { return m_audio ? m_audio.get() : m_player.data(); }
     void setPlayer(QMediaPlayer *player);
     QAudioOutput *audioOutput() const { return m_mainOutput; }
     void setAudioOutput(QAudioOutput *output);
@@ -39,6 +41,7 @@ public:
     Q_INVOKABLE void synchronize();
 signals:
     void playerChanged();
+    void audiblePlayerChanged();
     void audioTracksChanged();
     void rateChanged();
     void audioDelayChanged();

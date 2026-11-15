@@ -5,6 +5,47 @@ import "MediaUtils.js" as MediaUtils
 QtObject {
     required property var app
     property int pendingPauseRevision: -1
+    readonly property var currentTrack: app.currentTrackIndex >= 0 && app.currentTrackIndex < app.playlist.length ? app.playlist[app.currentTrackIndex] : null
+    readonly property bool hasLoadedTrack: {
+        if (!currentTrack || app.mediaPlayer.source.toString() !== currentTrack.url.toString())
+            return false;
+        var status = app.mediaPlayer.mediaStatus;
+        return status === MediaPlayer.LoadedMedia || status === MediaPlayer.BufferingMedia
+            || status === MediaPlayer.BufferedMedia || status === MediaPlayer.StalledMedia;
+    }
+    readonly property string playbackStateLabel: {
+        var status = app.mediaPlayer.mediaStatus;
+        if (status === MediaPlayer.InvalidMedia)
+            return "UNAVAILABLE";
+        if (status === MediaPlayer.EndOfMedia)
+            return "PLAYBACK FINISHED";
+        if (!currentTrack || app.mediaPlayer.source.toString() === "")
+            return "OPEN MEDIA";
+        if (status === MediaPlayer.LoadingMedia)
+            return "LOADING";
+        if (!hasLoadedTrack)
+            return "OPEN MEDIA";
+        if (app.mediaPlayer.playbackState === MediaPlayer.PausedState)
+            return "PAUSED";
+        if (app.mediaPlayer.playbackState === MediaPlayer.PlayingState) {
+            if (status === MediaPlayer.BufferingMedia || status === MediaPlayer.StalledMedia)
+                return "BUFFERING";
+            return "NOW PLAYING";
+        }
+        return "READY";
+    }
+    readonly property int nextTrackIndex: adjacentTrackIndex(1)
+    readonly property int previousTrackIndex: adjacentTrackIndex(-1)
+
+    function adjacentTrackIndex(offset) {
+        var count = app.playlist.length;
+        if (app.currentTrackIndex < 0 || app.currentTrackIndex >= count)
+            return -1;
+        var index = app.currentTrackIndex + offset;
+        if (index >= 0 && index < count)
+            return index;
+        return app.loopPlaylist ? ((index % count) + count) % count : -1;
+    }
 
     property Connections chapterConnections: Connections {
         target: app.playerController
@@ -39,21 +80,23 @@ QtObject {
     }
 
     function playNext() {
-        if (app.playlist.length > 0) {
-            var nextIndex = (app.currentTrackIndex + 1) % app.playlist.length;
-            loadTrack(nextIndex);
-            playCurrentTrack();
-            app.showMessage("Next: " + app.playlist[nextIndex].title);
-        }
+        playAdjacent(nextTrackIndex, "Next");
     }
 
     function playPrev() {
-        if (app.playlist.length > 0) {
-            var prevIndex = (app.currentTrackIndex - 1 + app.playlist.length) % app.playlist.length;
-            loadTrack(prevIndex);
-            playCurrentTrack();
-            app.showMessage("Previous: " + app.playlist[prevIndex].title);
-        }
+        playAdjacent(previousTrackIndex, "Previous");
+    }
+
+    function playAdjacent(index, label) {
+        if (index < 0)
+            return;
+        // A looping one-track queue restarts the existing source immediately.
+        if (index === app.currentTrackIndex)
+            app.seekTo(0);
+        else
+            loadTrack(index);
+        playCurrentTrack();
+        app.showMessage(label + ": " + app.playlist[index].title);
     }
 
     function loadTrack(index, offerResume) {
@@ -206,14 +249,9 @@ QtObject {
     }
 
     function navigateFromDesktop(offset) {
-        if (app.currentTrackIndex < 0 || app.playlist.length === 0)
+        var index = adjacentTrackIndex(offset);
+        if (index < 0)
             return;
-        var index = app.currentTrackIndex + offset;
-        if (index < 0 || index >= app.playlist.length) {
-            if (!app.playerController.loadLoop())
-                return;
-            index = (index + app.playlist.length) % app.playlist.length;
-        }
         var state = app.mediaPlayer.playbackState;
         loadTrack(index, false);
         if (state === MediaPlayer.PlayingState)
@@ -236,11 +274,9 @@ QtObject {
         applyPendingPause(status);
         // Source changes also stop playback; only advance when a track ends.
         if (status === MediaPlayer.EndOfMedia && app.currentTrackIndex >= 0 && app.playlist.length > 0) {
-            if (app.playerController.loadLoop()) {
-                loadTrack((app.currentTrackIndex + 1) % app.playlist.length, false);
-                playCurrentTrack();
-            } else if (app.currentTrackIndex < app.playlist.length - 1) {
-                loadTrack(app.currentTrackIndex + 1, false);
+            var index = nextTrackIndex;
+            if (index >= 0) {
+                loadTrack(index, false);
                 playCurrentTrack();
             } else {
                 app.currentTrackIndex = -1;

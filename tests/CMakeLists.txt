@@ -1,4 +1,5 @@
 add_library(mapl_test_backends STATIC
+    ../src/AudioLevelMeter.h ../src/AudioLevelMeter.cpp
     ../src/PlaybackOptions.h ../src/PlaybackOptions.cpp
     ../src/MprisService.h ../src/MprisService.cpp
     ../src/MprisAdaptors.h ../src/MprisAdaptors.cpp
@@ -52,17 +53,18 @@ add_dependencies(tst_subtitlegenerator mapl_process_helper)
 add_test(NAME subtitlegenerator COMMAND tst_subtitlegenerator)
 set_tests_properties(playercontroller modeldownloader subtitlegenerator PROPERTIES TIMEOUT 30)
 
-foreach(test_name IN ITEMS playbackoptions mpris)
+foreach(test_name IN ITEMS playbackoptions mpris audiolevelmeter)
     add_executable(tst_${test_name} cpp/tst_${test_name}.cpp)
     target_link_libraries(tst_${test_name} PRIVATE mapl_test_backends Qt6::Test)
 endforeach()
 add_test(NAME playbackoptions COMMAND tst_playbackoptions)
+add_test(NAME audiolevelmeter COMMAND tst_audiolevelmeter)
 find_program(DBUS_RUN_SESSION dbus-run-session)
 if(NOT DBUS_RUN_SESSION)
     message(FATAL_ERROR "MPRIS tests require dbus-run-session (install the dbus package)")
 endif()
 add_test(NAME mpris COMMAND ${DBUS_RUN_SESSION} -- $<TARGET_FILE:tst_mpris>)
-set_tests_properties(playbackoptions mpris PROPERTIES TIMEOUT 40 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set_tests_properties(playbackoptions mpris audiolevelmeter PROPERTIES TIMEOUT 40 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 if(MAPL_BUILD_APP)
     add_executable(tst_installedapplication cpp/tst_installedapplication.cpp)

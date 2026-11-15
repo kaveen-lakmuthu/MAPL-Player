@@ -15,6 +15,7 @@ TestCase {
         var component = Qt.createComponent(TestPaths.mainQml);
         compare(component.status, Component.Ready, component.errorString());
         appWindow = createTemporaryObject(component, testCase, {
+            layoutPersistenceEnabled: false,
             desktopControlsEnabled: false
         });
         verify(appWindow !== null);
@@ -27,19 +28,216 @@ TestCase {
         if (appWindow)
             appWindow.close();
     }
+    function test_selectFolderPlaylistEntry_data() {
+        return [
+            {tag: "video-side-panel", view: "video", expanded: false, filtered: false},
+            {tag: "audio-side-panel", view: "audio", expanded: false, filtered: false},
+            {tag: "expanded-panel", view: "video", expanded: true, filtered: false},
+            {tag: "filtered-side-panel", view: "video", expanded: false, filtered: true},
+            {tag: "filtered-expanded-panel", view: "audio", expanded: true, filtered: true}
+        ];
+    }
+    function test_selectFolderPlaylistEntry(data) {
+        appWindow.playFolderToggle = true;
+        appWindow.loadMediaFile(TestPaths.folderMediaUrl);
+        compare(appWindow.playlist.length, 3);
+        compare(appWindow.currentTrackIndex, 0);
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        appWindow.mediaPlayer.pause();
+        appWindow.showMediaView(data.view);
+        appWindow.togglePanel("playlist");
+        appWindow.setPanelExpanded(data.expanded);
+        var list = findChild(appWindow, "playlistListView");
+        var target = appWindow.playlist[2].url.toString();
+        if (data.filtered)
+            findChild(appWindow, "playlistFilter").text = "Last";
+        tryCompare(list, "count", data.filtered ? 1 : 3);
+        waitForRendering(list);
+        var row = list.itemAtIndex(data.filtered ? 0 : 2);
+        verify(row !== null);
+        compare(row.text, "3.  03 Last.wav", "Filtering must preserve the original queue number");
+        mouseClick(row);
+        compare(appWindow.currentTrackIndex, 2, "A playlist click must select that queue entry");
+        compare(appWindow.mediaPlayer.source.toString(), target);
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        compare(appWindow.playlist.length, 3, "Selecting a row must keep the folder queue");
+        compare(appWindow.panelView, "playlist");
+    }
+    function test_duplicatePlaylistUrlsSelectTheClickedOccurrence() {
+        appWindow.playlist = [
+            {url: TestPaths.audioUrl, title: "First occurrence"},
+            {url: TestPaths.audioUrl, title: "Repeat occurrence"}
+        ];
+        appWindow.loadTrack(0);
+        appWindow.playCurrentTrack();
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        appWindow.togglePanel("playlist");
+        var list = findChild(appWindow, "playlistListView");
+        waitForRendering(list);
+        verify(list.itemAtIndex(0).isCurrent);
+        verify(!list.itemAtIndex(1).isCurrent, "Only the current occurrence should be highlighted");
+        findChild(appWindow, "playlistFilter").text = "Repeat";
+        tryCompare(list, "count", 1);
+        waitForRendering(list);
+        mouseClick(list.itemAtIndex(0));
+        compare(appWindow.currentTrackIndex, 1);
+        verify(list.itemAtIndex(0).isCurrent);
+        compare(appWindow.mediaPlayer.source.toString(), TestPaths.audioUrl);
+        compare(appWindow.playlist.length, 2);
+    }
+    function test_layoutRestoredBetweenSessions_data() {
+        return [
+            {tag: "closed-audio", media: "audio", panel: "", expanded: false},
+            {tag: "playlist-video", media: "video", panel: "playlist", expanded: false},
+            {tag: "lyrics-audio", media: "audio", panel: "lyrics", expanded: false},
+            {tag: "expanded-playlist", media: "video", panel: "playlist", expanded: true},
+            {tag: "expanded-lyrics-startup-file", media: "video", panel: "lyrics", expanded: true, file: true}
+        ];
+    }
+    function test_layoutRestoredBetweenSessions(data) {
+        appWindow.layoutPersistenceEnabled = true;
+        appWindow.desktopLayout.restore();
+        appWindow.showNormal();
+        appWindow.width = 720;
+        appWindow.height = 480;
+        appWindow.showMediaView(data.media);
+        appWindow.panelView = data.panel;
+        appWindow.setPanelExpanded(data.expanded);
+        appWindow.close();
+        var component = Qt.createComponent(TestPaths.mainQml);
+        appWindow = createTemporaryObject(component, testCase, {
+            desktopControlsEnabled: false,
+            initialFileUrl: data.file ? TestPaths.audioUrl : ""
+        });
+        verify(appWindow !== null);
+        compare(appWindow.width, 720);
+        compare(appWindow.height, 480);
+        compare(appWindow.mediaView, data.file ? "audio" : data.media);
+        compare(appWindow.panelView, data.panel);
+        compare(appWindow.panelExpanded, data.expanded);
+        compare(findChild(appWindow, "sidePanel").visible, data.panel !== "");
+        compare(findChild(appWindow, "playerSurface").visible, !data.expanded);
+        appWindow.layoutPersistenceEnabled = false;
+    }
+    function test_layoutKeepsNormalGeometry_data() {
+        return [
+            {tag: "maximized", maximize: true, fullscreen: false},
+            {tag: "fullscreen-from-window", maximize: false, fullscreen: true},
+            {tag: "fullscreen-from-maximized", maximize: true, fullscreen: true}
+        ];
+    }
+    function test_layoutKeepsNormalGeometry(data) {
+        appWindow.layoutPersistenceEnabled = true;
+        appWindow.desktopLayout.restore();
+        appWindow.showNormal();
+        appWindow.width = 720;
+        appWindow.height = 480;
+        wait(150);
+        if (data.maximize) {
+            appWindow.showMaximized();
+            tryCompare(appWindow, "visibility", Window.Maximized);
+        }
+        if (data.fullscreen) {
+            appWindow.showFullScreen();
+            tryCompare(appWindow, "visibility", Window.FullScreen);
+        }
+        appWindow.close();
+        var component = Qt.createComponent(TestPaths.mainQml);
+        appWindow = createTemporaryObject(component, testCase, {desktopControlsEnabled: false});
+        verify(appWindow !== null);
+        tryCompare(appWindow, "visibility", data.maximize ? Window.Maximized : Window.Windowed);
+        compare(appWindow.desktopLayout.normalWidth, 720);
+        compare(appWindow.desktopLayout.normalHeight, 480);
+        appWindow.layoutPersistenceEnabled = false;
+    }
+    function test_taskPopupAvailableInFullscreen() {
+        appWindow.subtitleGenerator.generateSubtitles("", "", "", false);
+        appWindow.showMediaView("video");
+        appWindow.showFullScreen();
+        var indicator = findChild(appWindow, "backgroundTaskIndicator");
+        appWindow.controlsVisible = true;
+        mouseClick(indicator);
+        var popup = findChild(appWindow, "backgroundTasksPopup");
+        tryCompare(popup, "opened", true);
+        verify(appWindow.modalDialogOpen);
+        verify(appWindow.controlsVisible);
+        mouseClick(findChild(appWindow, "cancelSubtitleGeneration"));
+        verify(!appWindow.subtitleGenerator.isProcessing);
+        popup.close();
+    }
+    function test_audioVisualizerUsesPlaybackAndPresentationState() {
+        appWindow.visualizerEnabled = true;
+        appWindow.reduceMotion = false;
+        appWindow.loadMediaFile(TestPaths.audioUrl);
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        var indicator = findChild(appWindow, "audioVisualizer");
+        verify(indicator.visible);
+        verify(appWindow.audioLevels.enabled);
+        tryCompare(appWindow.audioLevels, "available", true);
+        compare(appWindow.audioLevels.rms, 0, "The fixture is silent; playback alone must not move the meter");
+        compare(appWindow.audioLevels.peak, 0);
+        waitForRendering(indicator);
+        for (var i = 0; i < 24; ++i) {
+            var bar = findChild(indicator, "audioSpectrumBar" + i);
+            verify(bar !== null, "Frequency bar " + i + " must exist");
+            tryCompare(bar, "height", 0);
+        }
+        appWindow.mediaPlayer.pause();
+        verify(!indicator.visible);
+        verify(!appWindow.audioLevels.available);
+        appWindow.mediaPlayer.play();
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        appWindow.reduceMotion = true;
+        verify(!appWindow.audioLevels.enabled);
+        verify(findChild(appWindow, "audioPlaybackIndicator").visible);
+        appWindow.isMuted = true;
+        compare(findChild(appWindow, "audioPlaybackIndicator").text, "Muted");
+        appWindow.reduceMotion = false;
+        appWindow.showMediaView("video");
+        verify(!appWindow.audioLevels.enabled);
+        appWindow.showMediaView("audio");
+        verify(appWindow.audioLevels.enabled);
+        appWindow.togglePanel("playlist");
+        appWindow.setPanelExpanded(true);
+        verify(!appWindow.audioLevels.enabled);
+        appWindow.setPanelExpanded(false);
+        verify(appWindow.audioLevels.enabled);
+        appWindow.height = 420;
+        tryCompare(indicator, "visible", false);
+        verify(!appWindow.audioLevels.enabled);
+        appWindow.height = 720;
+        tryCompare(indicator, "visible", true);
+        verify(appWindow.audioLevels.enabled);
+        appWindow.visualizerEnabled = false;
+        verify(!indicator.visible);
+        verify(!appWindow.audioLevels.enabled);
+        appWindow.visualizerEnabled = true;
+        appWindow.reduceMotion = false;
+    }
     function test_transcriptionCancelIsAvailableAcrossViews() {
         appWindow.subtitleGenerator.generateSubtitles("", "", "", false);
         var button = findChild(appWindow, "cancelSubtitleGeneration");
+        var indicator = findChild(appWindow, "backgroundTaskIndicator");
+        var popup = findChild(appWindow, "backgroundTasksPopup");
         verify(button !== null);
         for (var i = 0; i < 4; ++i) {
             appWindow.currentView = ["audio", "video", "lyrics", "playlist"][i];
             wait(20);
+            verify(indicator.visible);
+            mouseClick(indicator);
+            tryCompare(popup, "opened", true);
             verify(button.visible);
             verify(button.enabled);
+            if (i < 3) {
+                popup.close();
+                tryCompare(popup, "opened", false);
+            }
         }
         mouseClick(button);
         verify(!appWindow.subtitleGenerator.isProcessing);
         verify(!button.visible);
+        popup.close();
+        tryCompare(indicator, "visible", false);
     }
     function test_resumeDialogSeeksAndStartOverRestarts() {
         appWindow.playbackHistory.savePosition(TestPaths.audioUrl, 15000, 60000);
@@ -107,6 +305,7 @@ TestCase {
         var component = Qt.createComponent(TestPaths.mainQml);
         compare(component.status, Component.Ready, component.errorString());
         appWindow = createTemporaryObject(component, testCase, {
+            layoutPersistenceEnabled: false,
             desktopControlsEnabled: false,
             initialFileUrl: TestPaths.audioUrl
         });
@@ -150,7 +349,10 @@ TestCase {
         delay.value = 250;
         delay.valueModified();
         compare(appWindow.playbackOptions.audioDelayMs, 250);
+        compare(appWindow.audioLevels.player, appWindow.playbackOptions.audiblePlayer);
+        verify(appWindow.audioLevels.player !== appWindow.mediaPlayer);
         appWindow.resetAudioDelay();
+        compare(appWindow.audioLevels.player, appWindow.mediaPlayer);
         popup.close();
     }
     function test_desktopCommandsUseApplicationState() {
@@ -583,7 +785,11 @@ TestCase {
         verify(findChild(appWindow, "audioArtwork").width >= 240);
         verify(findChild(appWindow, "audioAmbientLight").visible);
         verify(play.height >= 56 && play.height > videoButtonHeight);
-        mouseClick(findChild(appWindow, "audioPlaylistButton"));
+        appWindow.showFullScreen();
+        tryCompare(appWindow, "visibility", Window.FullScreen);
+        var playlistButton = findChild(appWindow, "playlistPanelButton");
+        verify(playlistButton.visible);
+        mouseClick(playlistButton);
         compare(appWindow.panelView, "playlist");
         verify(!appWindow.panelExpanded);
         verify(findChild(appWindow, "audioPresentation").visible);
@@ -593,6 +799,8 @@ TestCase {
         compare(appWindow.mediaPlayer.playbackState, MediaPlayer.PausedState);
         compare(appWindow.playbackOptions.rate, 1.25);
         compare(appWindow.volumeSlider.value, 45);
+        appWindow.showNormal();
+        tryCompare(appWindow, "visibility", Window.Windowed);
         appWindow.showMediaView("video");
         wait(30);
         compare(play.height, videoButtonHeight);
@@ -622,10 +830,10 @@ TestCase {
                 if (panel !== "") appWindow.togglePanel(panel);
                 wait(30);
                 var surface = findChild(appWindow, "playerSurface");
-                for (var name of ["audioArtwork", "audioLiveLyrics", "audioUpNext", "audioPlaylistButton"]) {
+                for (var name of ["audioArtwork", "audioLiveLyrics", "audioUpNext"]) {
                     var item = findChild(appWindow, name);
                     if (name === "audioUpNext" && !data.multipleTracks) {
-                        verify(!item.visible, "No next track must not produce a second playlist action");
+                        verify(!item.visible, "No next track must not produce an Up next card");
                         continue;
                     }
                     verify(item.visible, name);
@@ -658,6 +866,39 @@ TestCase {
         appWindow.showMediaView("video");
         verify(!light.visible);
         compare(findChild(appWindow, "playerSurface").color, Qt.color("#000000"));
+    }
+
+    function test_audioLabelsAndUpNextFollowTheLoadedTrackAndLoopSetting() {
+        appWindow.loopPlaylist = false;
+        appWindow.showMediaView("audio");
+        var state = findChild(appWindow, "audioPlaybackState");
+        var next = findChild(appWindow, "audioUpNext");
+        var title = findChild(appWindow, "audioUpNextTitle");
+        compare(state.text, "OPEN MEDIA");
+        verify(!next.visible);
+        appWindow.loadMediaFile(TestPaths.audioUrl);
+        tryCompare(appWindow, "hasLoadedTrack", true);
+        tryCompare(state, "text", "NOW PLAYING");
+        appWindow.mediaPlayer.pause();
+        tryCompare(state, "text", "PAUSED");
+        appWindow.playlist = [{url: TestPaths.audioUrl, title: "First song"}, {url: TestPaths.audioUrl, title: "Second song"}];
+        tryCompare(next, "visible", true);
+        compare(title.text, "Second song");
+        mouseClick(next);
+        compare(appWindow.currentTrackIndex, 1);
+        tryCompare(next, "visible", false);
+        appWindow.mediaPlayer.pause();
+        appWindow.loopPlaylist = true;
+        tryCompare(next, "visible", true);
+        compare(title.text, "First song");
+        appWindow.loopPlaylist = false;
+        tryCompare(next, "visible", false);
+        appWindow.seekTo(appWindow.mediaPlayer.duration - 150);
+        appWindow.playCurrentTrack();
+        tryCompare(appWindow, "currentTrackIndex", -1, 5000);
+        compare(state.text, "PLAYBACK FINISHED");
+        verify(!appWindow.hasLoadedTrack);
+        verify(!next.visible);
     }
 
 }

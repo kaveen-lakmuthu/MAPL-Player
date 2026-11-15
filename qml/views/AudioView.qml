@@ -9,8 +9,9 @@ Item {
     id: root
     objectName: "audioPresentation"
     required property var app
+    property alias levelIndicator: audioLevelDisplay
     readonly property var track: app.currentTrackIndex >= 0 ? app.playlist[app.currentTrackIndex] : null
-    readonly property var nextTrack: app.playlist.length > 1 ? app.playlist[(app.currentTrackIndex + 1) % app.playlist.length] : null
+    readonly property var nextTrack: app.hasLoadedTrack && app.nextTrackIndex >= 0 ? app.playlist[app.nextTrackIndex] : null
     readonly property bool compact: width < 600 || height < 400
     readonly property bool stacked: width < 480 && height >= 520
     readonly property real artworkSize: Math.max(80, Math.min(stacked ? 180 : compact ? 144 : 320,
@@ -120,7 +121,8 @@ Item {
                 Layout.minimumWidth: 0
                 spacing: root.compact ? 6 : 12
                 Text {
-                    text: "NOW PLAYING"
+                    objectName: "audioPlaybackState"
+                    text: app.playbackStateLabel
                     color: "#b7cee4"
                     font.pixelSize: 10
                     font.letterSpacing: 2
@@ -128,7 +130,7 @@ Item {
                 Text {
                     objectName: "audioTrackTitle"
                     Layout.fillWidth: true
-                    text: root.track ? root.track.title : "Make room for the music"
+                    text: root.track ? root.track.title : app.mediaPlayer.mediaStatus === MediaPlayer.EndOfMedia ? "Playback finished" : "Make room for the music"
                     color: "#f4f8fc"
                     font.pixelSize: root.compact ? 20 : 32
                     font.bold: true
@@ -138,7 +140,7 @@ Item {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: root.track ? root.track.artist || "Unknown artist" : "Open a track, or drop media here."
+                    text: root.track ? root.track.artist || "Unknown artist" : app.mediaPlayer.mediaStatus === MediaPlayer.EndOfMedia ? "Select a track from Playlist to play again." : "Open a track, or drop media here."
                     color: "#c0d0e1"
                     font.pixelSize: root.compact ? 12 : 15
                     elide: Text.ElideRight
@@ -151,26 +153,13 @@ Item {
                     font.pixelSize: 11
                     elide: Text.ElideRight
                 }
-                Row {
-                    spacing: 4
-                    Layout.preferredHeight: 22
-                    visible: root.height >= 350 && app.visualizerEnabled && !app.reduceMotion && app.mediaPlayer.playbackState === MediaPlayer.PlayingState
-                    Repeater {
-                        model: 9
-                        Rectangle {
-                            width: 4
-                            height: 5
-                            radius: 2
-                            color: "#9dc7ef"
-                            anchors.bottom: parent.bottom
-                            SequentialAnimation on height {
-                                loops: Animation.Infinite
-                                running: root.visible && root.height >= 350 && app.visualizerEnabled && !app.reduceMotion && app.mediaPlayer.playbackState === MediaPlayer.PlayingState
-                                NumberAnimation { to: 22; duration: 240 + index * 40 }
-                                NumberAnimation { to: 4; duration: 290 + index * 30 }
-                            }
-                        }
-                    }
+                AudioVisualizer {
+                    id: audioLevelDisplay
+                    app: root.app
+                    Layout.fillWidth: true
+                    Layout.maximumWidth: 280
+                    Layout.preferredHeight: root.compact ? 48 : 62
+                    visible: root.height >= 350 && app.visualizerEnabled && app.mediaPlayer.playbackState === MediaPlayer.PlayingState
                 }
                 DesktopButton {
                     objectName: "audioLiveLyrics"
@@ -201,48 +190,33 @@ Item {
             }
         }
 
-        RowLayout {
+        DesktopButton {
+            objectName: "audioUpNext"
+            visible: !!root.nextTrack
             Layout.fillWidth: true
-            spacing: 10
-            Item {
-                Layout.fillWidth: true
-                visible: !root.nextTrack
+            Layout.minimumWidth: 0
+            implicitHeight: root.compact ? 48 : 62
+            glyph: "next"
+            hint: root.nextTrack ? "Play next: " + root.nextTrack.title : ""
+            onClicked: {
+                if (root.nextTrack) app.playNext();
             }
-            DesktopButton {
-                objectName: "audioUpNext"
-                visible: !!root.nextTrack
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                implicitHeight: root.compact ? 48 : 62
-                glyph: "next"
-                hint: root.nextTrack ? "Play next: " + root.nextTrack.title : ""
-                onClicked: {
-                    if (root.nextTrack) app.playNext();
-                }
-                contentItem: RowLayout {
-                    spacing: 12
-                    PlayerIcon { name: "next"; ink: "#b8d5f0" }
-                    ColumnLayout {
-                        spacing: 3
+            contentItem: RowLayout {
+                spacing: 12
+                PlayerIcon { name: "next"; ink: "#b8d5f0" }
+                ColumnLayout {
+                    spacing: 3
+                    Layout.fillWidth: true
+                    Text { text: "UP NEXT"; color: "#b7cee4"; font.pixelSize: 9; font.letterSpacing: 1 }
+                    Text {
+                            objectName: "audioUpNextTitle"
                         Layout.fillWidth: true
-                        Text { text: "UP NEXT"; color: "#b7cee4"; font.pixelSize: 9; font.letterSpacing: 1 }
-                        Text {
-                            Layout.fillWidth: true
-                            text: root.nextTrack ? root.nextTrack.title + (root.nextTrack.artist ? " · " + root.nextTrack.artist : "") : ""
-                            color: "#e1ebf5"
-                            font.pixelSize: 12
-                            elide: Text.ElideRight
-                        }
+                        text: root.nextTrack ? root.nextTrack.title + (root.nextTrack.artist ? " · " + root.nextTrack.artist : "") : ""
+                        color: "#e1ebf5"
+                        font.pixelSize: 12
+                        elide: Text.ElideRight
                     }
                 }
-            }
-            DesktopButton {
-                objectName: "audioPlaylistButton"
-                glyph: "playlist"
-                text: "Playlist"
-                hint: "Show playlist · " + app.playlist.length + " tracks"
-                selected: app.panelView === "playlist"
-                onClicked: app.togglePanel("playlist")
             }
         }
     }

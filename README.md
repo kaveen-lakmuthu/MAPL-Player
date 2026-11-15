@@ -2,9 +2,17 @@
 
 **MAPL Player** is a modern, native desktop media player for Linux, built on **C++ and Qt6/QML**. It plays virtually every video and audio format, generates subtitles offline using a local AI model, and ships with a dark desktop UI with compact video controls, a dedicated ambient Audio view, expandable lyrics and playlist panels, and hardware-accelerated timeline previews.
 
-> **Version 2.0.1-alpha. Alpha testing is underway.** Use `scripts/install.sh` to install for your user on Linux.
+> **Version 2.3.1-alpha. Alpha testing is underway.** Use `scripts/install.sh` to install for your user on Linux.
 
 The desktop UI redesign starts the **2.x** release series. Fixes use patch releases such as `2.0.1-alpha`; feature updates use minor releases such as `2.1.0-alpha`. Releases retain the `-alpha` suffix while alpha testing continues. The build derives the application version from `CMakeLists.txt` and exposes it in About and through `mapl-player --version`.
+
+MAPL remembers the normal window size, maximized state, Audio/Video presentation, and the open or expanded Lyrics/Playlist panel between sessions. Opening a media file still selects its appropriate presentation. Fullscreen is temporary; window placement stays with the window manager.
+
+Click any Playlist row to play that item immediately, including in folder-loaded queues and filtered results. Filtering preserves queue positions, and selecting an item keeps the queue for automatic advancement. Entries remain individually selectable when the same file appears more than once.
+
+During model downloads, verification, or transcription, a compact task button beside the timeline opens progress and individual cancellation controls. It is available in every view, including the fullscreen playback strip. Dismissing the task panel leaves jobs running; detailed model management remains in Options → Subtitles → Whisper models.
+
+Audio view has a compact cava-style visualizer: 24 vertical bars respond to actual frequency content, with bass on the left and treble on the right. It analyzes decoded audio with a Hann-windowed FFT and logarithmic frequency bands, combines channel powers without cancelling opposite-phase stereo, and follows MAPL volume, mute and audio delay. Silence flattens the bars; pause/stop clears them and hidden views stop collecting samples. Qt 6.8+ with the FFmpeg backend provides audio samples; other backends, older Qt versions, and Reduce motion use a steady playback indicator. Toggle it through Options → Appearance → Audio visualizer.
 
 ---
 

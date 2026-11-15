@@ -8,6 +8,7 @@ Item {
     id: root
     required property var app
     property alias videoOutput: videoView.output
+    property alias audioLevelIndicator: audioView.levelIndicator
     property alias transcriptListView: transcriptView.listView
     property alias seekSlider: controlsPanel.seekSlider
     property alias volumeSlider: controlsPanel.volumeSlider
@@ -30,7 +31,7 @@ Item {
             clip: true
             color: app.mediaView === "video" ? "#000000" : app.bgBaseColor
             // Keep the same VideoOutput alive while opening panels or changing views.
-            AudioView { app: root.app }
+            AudioView { id: audioView; app: root.app }
             VideoView { id: videoView; app: root.app }
             VolumeWheelHandler { app: root.app }
 
@@ -125,17 +126,5 @@ Item {
             font.pixelSize: 12
             wrapMode: Text.WordWrap
         }
-    }
-    DesktopButton {
-        objectName: "cancelSubtitleGeneration"
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.margins: 8
-        visible: app.subtitleGenerator.isProcessing
-        enabled: !app.subtitleGenerator.isCancelling
-        text: app.subtitleGenerator.isCancelling ? "Cancelling…" : "Transcribing " + Math.round(app.transcriptionProgressValue) + "% · Cancel"
-        hint: "Cancel subtitle generation"
-        onClicked: app.cancelSubtitleGeneration()
-        z: 201
     }
 }

@@ -7,6 +7,7 @@ Item {
     property var playlist: []
     property int currentTrackIndex: -1
     property bool playFolderToggle: false
+    property alias loopPlaylist: controller.looping
     property int mediaRevision: 0
     property var subtitleGenerationRequest: null
     property var subtitleChunks: []

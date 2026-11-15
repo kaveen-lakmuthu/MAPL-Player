@@ -37,8 +37,12 @@ ApplicationWindow {
     font.pixelSize: 13
 
     property bool desktopControlsEnabled: true
+    property bool layoutPersistenceEnabled: true
+    property alias desktopLayout: layoutState
+    property alias backgroundTasks: tasks
+    readonly property bool backgroundTasksOpen: tasksPopup.visible
     readonly property bool textInputFocused: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
-    readonly property bool modalDialogOpen: playbackOptionsPopup.visible || resumeDialog.visible || modelManager.visible || recentFilesMenu.visible || aboutModal.visible || subtitlePickerPopup.visible || chaptersPopup.visible || fileDialogs.dialogOpen || subtitleSettings.visible || generatorDialog.visible || playerLayout.menuOpen
+    readonly property bool modalDialogOpen: playbackOptionsPopup.visible || resumeDialog.visible || modelManager.visible || recentFilesMenu.visible || aboutModal.visible || subtitlePickerPopup.visible || chaptersPopup.visible || fileDialogs.dialogOpen || subtitleSettings.visible || generatorDialog.visible || tasksPopup.visible || playerLayout.menuOpen
     onModalDialogOpenChanged: {
         if (modalDialogOpen)
             controlsVisible = true;
@@ -48,6 +52,10 @@ ApplicationWindow {
     property bool loopPlaylist: controller.loadLoop()
     property alias playbackHistory: history
     property alias playbackMemory: memory
+    readonly property bool hasLoadedTrack: playbackSession.hasLoadedTrack
+    readonly property string playbackStateLabel: playbackSession.playbackStateLabel
+    readonly property int nextTrackIndex: playbackSession.nextTrackIndex
+    readonly property int previousTrackIndex: playbackSession.previousTrackIndex
     readonly property bool resumePending: memory.pendingResume !== null
     readonly property string resumeTitle: memory.pendingResume !== null ? memory.pendingResume.title : ""
     readonly property real resumePositionMs: memory.pendingResume !== null ? memory.pendingResume.position : 0
@@ -55,6 +63,7 @@ ApplicationWindow {
     property alias playerController: controller
     property alias subtitleGenerator: subGenerator
     property alias modelDownloader: modelDownloaderBackend
+    property alias audioLevels: audioLevelBackend
     property alias videoOutput: playerLayout.videoOutput
     property alias seekSlider: playerLayout.seekSlider
     property alias volumeSlider: playerLayout.volumeSlider
@@ -66,6 +75,14 @@ ApplicationWindow {
     property string subtitleLanguage: "Auto-Detect"
     property bool translateSubtitles: false
 
+    DesktopLayout { id: layoutState; app: window }
+    BackgroundTasks { id: tasks; app: window }
+    BackgroundTasksPopup { id: tasksPopup; app: window }
+    function openBackgroundTasks() {
+        generatorDialog.close();
+        tasksPopup.open();
+    }
+
     PlaybackOptions {
         id: playbackOptionsBackend
         player: window.mediaPlayer
@@ -76,6 +93,11 @@ ApplicationWindow {
         id: playbackOptionsPopup
         app: window
     }
+    AudioLevelMeter {
+        id: audioLevelBackend
+        player: playbackOptionsBackend.audiblePlayer
+        enabled: playerLayout.audioLevelIndicator.visible && !window.reduceMotion && window.visible
+    }
     function openPlaybackOptions() {
         playbackOptionsPopup.open();
     }
@@ -83,6 +105,7 @@ ApplicationWindow {
         playbackOptionsBackend.resetAudioDelay();
     }
     function seekTo(position) {
+        audioLevelBackend.clear();
         mpris.seekToMs(Math.round(position));
         playbackOptionsBackend.synchronize();
     }
@@ -160,6 +183,7 @@ ApplicationWindow {
     }
 
     onClosing: {
+        layoutState.save();
         memory.checkpoint();
         history.sync();
         // Shutdown's position reset must not replace the checkpoint just saved.
@@ -314,6 +338,7 @@ ApplicationWindow {
         if (initialFileUrl !== "") {
             loadMediaFile(initialFileUrl);
         }
+        layoutState.restore();
     }
 
     onVisibilityChanged: {

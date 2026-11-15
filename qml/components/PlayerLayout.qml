@@ -6,6 +6,7 @@ ColumnLayout {
     id: root
     required property var app
     property alias videoOutput: playerContent.videoOutput
+    property alias audioLevelIndicator: playerContent.audioLevelIndicator
     property alias transcriptListView: playerContent.transcriptListView
     property alias seekSlider: playerContent.seekSlider
     property alias volumeSlider: playerContent.volumeSlider
@@ -18,7 +19,7 @@ ColumnLayout {
         id: toolbar
         app: root.app
         Layout.fillWidth: true
-        visible: app.visibility !== Window.FullScreen
+        visible: app.visibility !== Window.FullScreen || app.mediaView === "audio"
     }
     PlayerContent {
         id: playerContent

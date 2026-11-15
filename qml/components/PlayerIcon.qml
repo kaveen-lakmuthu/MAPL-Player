@@ -68,6 +68,9 @@ Canvas {
         case "settings":
             line([4, 6, 20, 6]); line([4, 12, 20, 12]); line([4, 18, 20, 18]);
             c.fillRect(8, 3, 3, 6); c.fillRect(15, 9, 3, 6); c.fillRect(6, 15, 3, 6); break;
+        case "tasks":
+            c.beginPath(); c.arc(12, 12, 8, 0, Math.PI * 2); c.stroke();
+            line([12, 7, 12, 12, 16, 14]); break;
         case "trash": line([5, 6, 19, 6]); line([9, 6, 9, 3, 15, 3, 15, 6]);
             line([7, 9, 8, 21, 16, 21, 17, 9]); break;
         }

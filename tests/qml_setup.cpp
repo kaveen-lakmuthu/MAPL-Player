@@ -7,10 +7,12 @@
 #include <QUrl>
 #include <QFile>
 #include <QDataStream>
+#include <QDir>
 #include "ModelDownloader.h"
 #include "PlayerController.h"
 #include "PlaybackHistory.h"
 #include "PlaybackOptions.h"
+#include "AudioLevelMeter.h"
 #include "MprisService.h"
 
 // UI smoke tests do not run inference or download model weights.
@@ -75,7 +77,12 @@ public slots:
             stream << quint32(silence.size());
             stream.writeRawData(silence.constData(), silence.size());
         }
+        audio.close();
+        QDir().mkpath(settings.filePath("folder-queue"));
+        for (const auto *name : {"01 First.wav", "02 Middle.wav", "03 Last.wav"})
+            QFile::copy(audio.fileName(), settings.filePath(QStringLiteral("folder-queue/") + name));
         qmlRegisterType<PlaybackOptions>("MAPLPlayerNative", 1, 0, "PlaybackOptions");
+        qmlRegisterType<AudioLevelMeter>("MAPLPlayerNative", 1, 0, "AudioLevelMeter");
         qmlRegisterType<MprisService>("MAPLPlayerNative", 1, 0, "MprisService");
         qmlRegisterType<PlaybackHistory>("MAPLPlayerNative", 1, 0, "PlaybackHistory");
         qmlRegisterType<PlayerController>("MAPLPlayerNative", 1, 0, "PlayerController");
@@ -86,7 +93,8 @@ public slots:
     {
         engine->rootContext()->setContextProperty("TestPaths", QVariantMap{
             {"mainQml", QUrl::fromLocalFile(QStringLiteral(MAPL_SOURCE_DIR "/qml/main.qml"))},
-            {"audioUrl", QUrl::fromLocalFile(settings.filePath("Resume #1.wav")).toString()}
+            {"audioUrl", QUrl::fromLocalFile(settings.filePath("Resume #1.wav")).toString()},
+            {"folderMediaUrl", QUrl::fromLocalFile(settings.filePath("folder-queue/01 First.wav")).toString()}
         });
     }
 private:

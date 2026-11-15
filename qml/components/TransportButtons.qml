@@ -10,7 +10,7 @@ RowLayout {
     DesktopButton {
         glyph: "previous"
         hint: "Previous track (P)"
-        enabled: app.playlist.length > 0
+        enabled: app.previousTrackIndex >= 0
         implicitWidth: root.spacious ? 42 : 32
         implicitHeight: root.spacious ? 42 : 30
         cornerRadius: root.spacious ? 21 : 5
@@ -49,7 +49,7 @@ RowLayout {
     DesktopButton {
         glyph: "next"
         hint: "Next track (N)"
-        enabled: app.playlist.length > 0
+        enabled: app.nextTrackIndex >= 0
         implicitWidth: root.spacious ? 42 : 32
         implicitHeight: root.spacious ? 42 : 30
         cornerRadius: root.spacious ? 21 : 5

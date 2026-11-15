@@ -183,4 +183,5 @@ RowLayout {
         implicitWidth: 48
         onClicked: app.openPlaybackOptions()
     }
+    BackgroundTaskIndicator { app: root.app }
 }

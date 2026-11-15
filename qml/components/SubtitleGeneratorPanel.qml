@@ -42,23 +42,18 @@ ColumnLayout {
             text: "Generate"
             prominent: true
             enabled: app.currentTrackIndex !== -1 && !app.modelDownloader.isBusy && !app.subtitleGenerator.isProcessing
-            onClicked: app.generateSubtitlesForCurrentTrack()
+            onClicked: {
+                app.generateSubtitlesForCurrentTrack();
+                if (app.backgroundTasks.count > 0)
+                    app.openBackgroundTasks();
+            }
         }
         DesktopButton { text: "Whisper models…"; onClicked: app.openModelManager() }
     }
     Text { visible: app.currentTrackIndex < 0; text: "Open a media file first."; color: "#b9c8d7"; font.pixelSize: 12 }
-    ColumnLayout {
-        Layout.fillWidth: true
-        visible: app.modelDownloader.isBusy
-        Text { text: app.modelDownloader.isVerifying ? "Verifying model checksum…" : "Downloading " + app.modelDownloader.activeModel + "…"; color: "#edf3fa"; font.pixelSize: 12 }
-        ProgressBar { Layout.fillWidth: true; from: 0; to: 100; value: app.downloadProgressValue; indeterminate: app.modelDownloader.isVerifying }
-        DesktopButton { text: "Cancel download"; onClicked: app.modelDownloader.cancelOperation() }
-    }
-    ColumnLayout {
-        Layout.fillWidth: true
-        visible: app.subtitleGenerator.isProcessing
-        Text { text: app.subtitleGenerator.isCancelling ? "Cancelling transcription…" : "Transcribing locally · " + Math.round(app.transcriptionProgressValue) + "%"; color: "#edf3fa"; font.pixelSize: 12 }
-        ProgressBar { Layout.fillWidth: true; from: 0; to: 100; value: app.transcriptionProgressValue }
-        DesktopButton { text: "Cancel transcription"; enabled: !app.subtitleGenerator.isCancelling; onClicked: app.cancelSubtitleGeneration() }
+    DesktopButton {
+        visible: app.backgroundTasks.count > 0
+        text: "View background tasks…"
+        onClicked: app.openBackgroundTasks()
     }
 }

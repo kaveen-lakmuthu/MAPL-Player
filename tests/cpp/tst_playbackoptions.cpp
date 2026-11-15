@@ -45,6 +45,7 @@ private slots:
         player.setPosition(10000);
         options.setAudioDelayMs(500);
         QVERIFY(options.m_audio);
+        QCOMPARE(options.audiblePlayer(), options.m_audio.get());
         QVERIFY(player.audioOutput() != &output);
         QVERIFY(player.audioOutput());
         QVERIFY(player.audioOutput()->isMuted());
@@ -68,6 +69,7 @@ private slots:
         options.resetAudioDelay();
         QCOMPARE(options.audioDelayMs(), 0);
         QVERIFY(!options.m_audio);
+        QCOMPARE(options.audiblePlayer(), &player);
         QCOMPARE(player.audioOutput(), &output);
         QCOMPARE(player.playbackRate(), 2);
         QCOMPARE(errors.count(), 0);

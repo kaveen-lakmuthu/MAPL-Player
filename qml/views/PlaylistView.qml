@@ -5,6 +5,15 @@ import QtQuick.Layouts
 Item {
     id: root
     required property var app
+    readonly property var filteredIndices: {
+        var result = [];
+        var query = filter.text.toLowerCase();
+        for (var i = 0; i < app.playlist.length; ++i) {
+            if (app.playlist[i].title.toLowerCase().indexOf(query) !== -1)
+                result.push(i);
+        }
+        return result;
+    }
     anchors.fill: parent
     visible: app.panelView === "playlist"
 
@@ -21,6 +30,7 @@ Item {
         }
         TextField {
             id: filter
+            objectName: "playlistFilter"
             Layout.fillWidth: true
             Layout.preferredHeight: 30
             placeholderText: "Filter playlist…"
@@ -33,16 +43,21 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
-            model: app.playlist.filter(track => track.title.toLowerCase().indexOf(filter.text.toLowerCase()) !== -1)
+            // Preserve queue indices through filtering. C++ QVariantMap entries
+            // become separate JS wrappers, so indexOf(modelData) cannot find them.
+            model: root.filteredIndices
             ScrollBar.vertical: ScrollBar {}
             delegate: ItemDelegate {
                 id: track
+                required property int modelData
+                readonly property var entry: app.playlist[modelData]
                 width: list.width
                 height: 34
-                property bool isCurrent: modelData.url === app.playlist[app.currentTrackIndex]?.url
-                contentItem: Text { text: (index + 1) + ".  " + modelData.title; color: track.isCurrent ? "#9dcbff" : "#d3dee9"; font.bold: track.isCurrent; font.pixelSize: 12; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter }
+                readonly property bool isCurrent: modelData === app.currentTrackIndex
+                text: (modelData + 1) + ".  " + (entry ? entry.title : "")
+                contentItem: Text { text: track.text; color: track.isCurrent ? "#9dcbff" : "#d3dee9"; font.bold: track.isCurrent; font.pixelSize: 12; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter }
                 background: Rectangle { color: track.isCurrent ? "#30485e" : track.hovered ? "#2b3c4d" : "transparent"; radius: 4 }
-                onClicked: { app.loadTrack(app.playlist.indexOf(modelData)); app.playCurrentTrack(); }
+                onClicked: { app.loadTrack(modelData); app.playCurrentTrack(); }
             }
         }
         Text { visible: app.playlist.length === 0; text: "Open media or an XSPF playlist from File."; color: "#acbdcf"; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }

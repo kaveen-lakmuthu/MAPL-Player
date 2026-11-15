@@ -137,4 +137,92 @@ TestCase {
         compare(app.subtitleGenerationRequest, null);
         compare(app.mediaRevision, revision + 1);
     }
+    function test_playbackLabelsFollowMediaAndPlaybackStates() {
+        compare(app.playbackSession.playbackStateLabel, "NOW PLAYING");
+        verify(app.playbackSession.hasLoadedTrack);
+        app.mediaPlayer.pause();
+        compare(app.playbackSession.playbackStateLabel, "PAUSED");
+        app.loadTrack(0);
+        compare(app.playbackSession.playbackStateLabel, "LOADING");
+        verify(!app.playbackSession.hasLoadedTrack);
+        app.playCurrentTrack();
+        compare(app.playbackSession.playbackStateLabel, "NOW PLAYING");
+        app.mediaPlayer.mediaStatus = MediaPlayer.StalledMedia;
+        compare(app.playbackSession.playbackStateLabel, "BUFFERING");
+        verify(app.playbackSession.hasLoadedTrack);
+        app.mediaPlayer.mediaStatus = MediaPlayer.BufferingMedia;
+        compare(app.playbackSession.playbackStateLabel, "BUFFERING");
+        app.mediaPlayer.pause();
+        compare(app.playbackSession.playbackStateLabel, "PAUSED");
+        app.mediaPlayer.mediaStatus = MediaPlayer.BufferedMedia;
+        app.playbackSession.stopPlayback();
+        compare(app.playbackSession.playbackStateLabel, "READY");
+        app.mediaPlayer.mediaStatus = MediaPlayer.InvalidMedia;
+        compare(app.playbackSession.playbackStateLabel, "UNAVAILABLE");
+        verify(!app.playbackSession.hasLoadedTrack);
+        app.mediaPlayer.source = "";
+        app.mediaPlayer.mediaStatus = MediaPlayer.NoMedia;
+        compare(app.playbackSession.playbackStateLabel, "OPEN MEDIA");
+        app.playlist = [];
+        app.currentTrackIndex = -1;
+        app.loopPlaylist = true;
+        compare(app.playbackSession.nextTrackIndex, -1);
+        compare(app.playbackSession.previousTrackIndex, -1);
+    }
+    function test_queuePredictionMatchesManualAndAutomaticAdvance_data() {
+        return [
+            {tag: "first", index: 0, count: 3, loop: false, next: 1, previous: -1},
+            {tag: "middle", index: 1, count: 3, loop: false, next: 2, previous: 0},
+            {tag: "last-no-loop", index: 2, count: 3, loop: false, next: -1, previous: 1},
+            {tag: "last-loop", index: 2, count: 3, loop: true, next: 0, previous: 1},
+            {tag: "single-no-loop", index: 0, count: 1, loop: false, next: -1, previous: -1},
+            {tag: "single-loop", index: 0, count: 1, loop: true, next: 0, previous: 0}
+        ];
+    }
+    function test_queuePredictionMatchesManualAndAutomaticAdvance(data) {
+        app.playlist = app.playlist.slice(0, data.count);
+        app.loopPlaylist = data.loop;
+        app.playbackSession.loadTrack(data.index, false);
+        app.playCurrentTrack();
+        compare(app.playbackSession.nextTrackIndex, data.next);
+        compare(app.playbackSession.previousTrackIndex, data.previous);
+        app.mediaPlayer.position = 12000;
+        app.playbackSession.playNext();
+        compare(app.currentTrackIndex, data.next >= 0 ? data.next : data.index);
+        if (data.next === data.index)
+            compare(app.mediaPlayer.position, 0, "A single looping track restarts when Next is pressed");
+        if (data.next < 0)
+            compare(app.mediaPlayer.position, 12000, "Next must not wrap when looping is off");
+        app.playbackSession.loadTrack(data.index, false);
+        app.playCurrentTrack();
+        app.mediaPlayer.finish();
+        compare(app.currentTrackIndex, data.next);
+        if (data.next < 0) {
+            compare(app.mediaPlayer.playbackState, MediaPlayer.StoppedState);
+            compare(app.playbackSession.playbackStateLabel, "PLAYBACK FINISHED");
+            verify(!app.playbackSession.hasLoadedTrack);
+        } else {
+            compare(app.mediaPlayer.playbackState, MediaPlayer.PlayingState);
+            compare(app.playbackSession.playbackStateLabel, "NOW PLAYING");
+        }
+    }
+    function test_loopToggleUpdatesPredictionWithoutReloadingMedia() {
+        app.loadTrack(2);
+        app.playCurrentTrack();
+        var revision = app.mediaRevision;
+        compare(app.playbackSession.nextTrackIndex, -1);
+        app.loopPlaylist = true;
+        compare(app.playbackSession.nextTrackIndex, 0);
+        app.loopPlaylist = false;
+        compare(app.playbackSession.nextTrackIndex, -1);
+        compare(app.mediaRevision, revision);
+        assertTrack(2, "C");
+    }
+    function test_queueReorderingChangesTheActualNextTrack() {
+        app.playlist = [app.track("file:///C.mp4", "C"), app.track("file:///B.mp4", "B"), app.track("file:///A.mp4", "A")];
+        compare(app.playbackSession.nextTrackIndex, 2);
+        app.playbackSession.playNext();
+        assertTrack(2, "A");
+    }
+
 }
