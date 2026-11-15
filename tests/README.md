@@ -4,7 +4,7 @@ The suite uses Qt Test for C++ and Qt Quick Test for QML. It tests the productio
 
 ## Run
 
-Install the project's Qt development dependencies, including Qt Test and Qt Quick Test, plus Qt DBus, `dbus-run-session`, CMake 3.21 or newer and Ninja for the presets. On Ubuntu/Debian, install the Qt QML runtime modules as well; the [CI workflow](../.github/workflows/tests.yml) lists the complete package set. From the repository root:
+Install the project's Qt development dependencies, including Qt Test and Qt Quick Test, plus Qt DBus, `dbus-run-session`, CMake 3.21 or newer and Ninja for the presets. On Ubuntu/Debian, install the Qt QML runtime modules as well; the [README's installation instructions](../README.md#1-install-dependencies) list the package sets for each distribution. Tests run locally; there is no automatic GitHub Actions workflow. From the repository root:
 
 ```bash
 cmake --preset tests
@@ -43,4 +43,4 @@ The executable is then `build/mapl-player`, ready for `./scripts/install.sh`. Th
 - Wheel volume control on audio/video and volume controls, high-resolution deltas, bounds and unmuting, while transcripts, playlists and modal panels retain normal scrolling.
 - Full application builds also copy the executable to an otherwise empty temporary directory and test application-menu startup and Open With (paths and file URLs), with isolated settings and a private D-Bus session.
 
-Download tests simulate network replies, including the synchronous error/finished signals that caused the cancellation bug. They never contact external servers. Background-job tests launch a small child-process fixture in place of ffprobe/ffmpeg, checking that cancellation reaps it and removes partial files. When ffmpeg/ffprobe are installed, an integration check also creates a tiny real Matroska file and verifies chapter scanning and subtitle extraction. Transcription tests run the production worker and controller with a deterministic inference substitute; they do not validate Whisper recognition quality. The app smoke tests do not run Whisper inference. The GitHub Actions workflow also builds the full application with the pinned Whisper dependency.
+Download tests simulate network replies, including the synchronous error/finished signals that caused the cancellation bug. They never contact external servers. Background-job tests launch a small child-process fixture in place of ffprobe/ffmpeg, checking that cancellation reaps it and removes partial files. When ffmpeg/ffprobe are installed, an integration check also creates a tiny real Matroska file and verifies chapter scanning and subtitle extraction. Transcription tests run the production worker and controller with a deterministic inference substitute; they do not validate Whisper recognition quality. The app smoke tests do not run Whisper inference. Use the `dev` preset above to build the full application with the pinned Whisper dependency and run the complete suite locally.

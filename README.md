@@ -22,7 +22,6 @@ Audio view has a compact cava-style visualizer: 24 vertical bars respond to actu
 |---|---|
 | `src/` | C++ application entry point and controllers |
 | `qml/` | Window shell, views, controls, dialogs and shared logic |
-| `design/` | Desktop UI requirements and HTML design preview |
 | `assets/icons/` | Application icon |
 | `packaging/` | Desktop launcher template |
 | `scripts/` | User-local installation script |
@@ -171,6 +170,8 @@ After source updates, close MAPL, rebuild with `cmake --build build --parallel 4
 Use the instructions above for the current installation workflow. See [the native guide](docs/native-guide.md) for architecture, hardware acceleration notes and developer reference, [desktop media controls](docs/desktop-media.md) for MPRIS and audio delay, and [the model catalogue](docs/model-catalog.md) for Whisper models.
 
 ## Regression tests
+
+Tests run locally through the commands below; this repository does not configure automatic GitHub Actions runs.
 
 ```bash
 cmake --preset tests
