@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(MAPLPlayerNative VERSION 2.3.6 LANGUAGES CXX C)
+project(MAPLPlayerNative VERSION 2.3.7 LANGUAGES CXX C)
 set(MAPL_VERSION_STRING "${PROJECT_VERSION}-alpha")
 
 set(CMAKE_CXX_STANDARD 20)
@@ -91,6 +91,10 @@ if(MAPL_BUILD_APP)
         qml/components/AudioVisualizer.qml
         qml/components/BackgroundTaskIndicator.qml
         qml/components/DesktopButton.qml
+        qml/components/DesktopComboBox.qml
+        qml/components/DesktopMenu.qml
+        qml/components/DesktopMenuItem.qml
+        qml/components/DesktopMenuSeparator.qml
         qml/components/DesktopToolbar.qml
         qml/components/PlayerIcon.qml
         qml/components/FileDrawer.qml

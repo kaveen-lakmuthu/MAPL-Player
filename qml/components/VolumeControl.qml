@@ -8,7 +8,7 @@ RowLayout {
     required property var app
     property bool isNarrow: false
     property alias slider: volumeSlider
-    spacing: 6
+    spacing: 8
     VolumeWheelHandler { app: root.app }
     DesktopButton {
         glyph: app.isMuted || volumeSlider.value === 0 ? "muted" : "volume"

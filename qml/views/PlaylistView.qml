@@ -33,6 +33,8 @@ Item {
             objectName: "playlistFilter"
             Layout.fillWidth: true
             Layout.preferredHeight: 30
+            leftPadding: 12
+            rightPadding: 12
             placeholderText: "Filter playlist…"
             color: "#edf3fa"
             background: Rectangle { color: "#15212c"; radius: 4; border.width: filter.activeFocus ? 1 : 0; border.color: "#9dcbff" }
@@ -43,6 +45,7 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
+            spacing: 2
             // Preserve queue indices through filtering. C++ QVariantMap entries
             // become separate JS wrappers, so indexOf(modelData) cannot find them.
             model: root.filteredIndices
@@ -53,6 +56,8 @@ Item {
                 readonly property var entry: app.playlist[modelData]
                 width: list.width
                 height: 34
+                horizontalPadding: 12
+                verticalPadding: 8
                 readonly property bool isCurrent: modelData === app.currentTrackIndex
                 text: (modelData + 1) + ".  " + (entry ? entry.title : "")
                 contentItem: Text { text: track.text; color: track.isCurrent ? "#9dcbff" : "#d3dee9"; font.bold: track.isCurrent; font.pixelSize: 12; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter }

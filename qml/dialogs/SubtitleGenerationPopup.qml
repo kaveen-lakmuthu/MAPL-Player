@@ -6,7 +6,7 @@ PlayerPopup {
     id: root
     objectName: "subtitleGenerationPopup"
     preferredWidth: 470
-    padding: 18
+    padding: 20
     background: Rectangle { color: "#202c38"; radius: 7 }
     contentItem: ScrollView {
         id: scroll

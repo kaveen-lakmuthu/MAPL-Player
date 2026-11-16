@@ -15,12 +15,14 @@ Item {
         spacing: 8
         RowLayout {
             Layout.fillWidth: true
-            spacing: 4
+            spacing: 8
             TextField {
                 id: search
                 objectName: "transcriptSearchField"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
+                leftPadding: 12
+                rightPadding: 12
                 placeholderText: "Search transcript…"
                 enabled: app.subtitleChunks.length > 0
                 text: app.transcriptSearchQuery
@@ -69,6 +71,7 @@ Item {
                 width: transcriptListView.width
                 implicitHeight: row.implicitHeight + 16
                 padding: 8
+                horizontalPadding: 12
                 property int originalIndex: modelData.originalIndex !== undefined ? modelData.originalIndex : index
                 property bool isActive: originalIndex === app.currentActiveSubtitleIndex
                 contentItem: RowLayout {

@@ -11,9 +11,10 @@ Basic.Button {
     property bool prominent: false
     property real iconSize: 18
     property real cornerRadius: 5
-    implicitWidth: text === "" ? 32 : contentItem.implicitWidth + 18
-    implicitHeight: 30
+    implicitWidth: Math.max(34, contentItem.implicitWidth + leftPadding + rightPadding)
+    implicitHeight: Math.max(30, contentItem.implicitHeight + topPadding + bottomPadding)
     padding: 6
+    horizontalPadding: text === "" ? 8 : 12
     focusPolicy: Qt.TabFocus
     Accessible.name: hint
     ToolTip.visible: hovered && hint !== ""
@@ -21,7 +22,7 @@ Basic.Button {
     ToolTip.text: hint
     opacity: enabled ? 1 : 0.4
     contentItem: RowLayout {
-        spacing: 6
+        spacing: 8
         PlayerIcon {
             visible: root.glyph !== ""
             name: root.glyph

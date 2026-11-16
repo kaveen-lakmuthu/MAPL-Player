@@ -179,8 +179,8 @@ RowLayout {
         objectName: "playbackOptionsButton"
         text: Number(app.playbackOptions.rate.toFixed(2)) + "×"
         hint: "Audio tracks, speed and audio delay"
-        implicitHeight: 26
-        implicitWidth: 48
+        implicitHeight: 30
+        implicitWidth: Math.max(56, contentItem.implicitWidth + leftPadding + rightPadding)
         onClicked: app.openPlaybackOptions()
     }
     BackgroundTaskIndicator { app: root.app }

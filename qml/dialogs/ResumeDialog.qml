@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../components"
 import "../logic/MediaUtils.js" as MediaUtils
 
 PlayerDialog {
@@ -37,16 +38,18 @@ PlayerDialog {
         }
     }
     footer: DialogButtonBox {
-        Button {
+        padding: 20
+        spacing: 8
+        DesktopButton {
             objectName: "startOverButton"
             text: "Start from beginning"
             DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
             onClicked: app.startPlaybackOver()
         }
-        Button {
+        DesktopButton {
             objectName: "resumeButton"
             text: "Resume"
-            highlighted: true
+            prominent: true
             DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
             onClicked: app.resumePlayback()
         }

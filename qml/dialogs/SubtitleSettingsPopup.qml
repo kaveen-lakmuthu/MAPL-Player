@@ -7,8 +7,8 @@ import "../components"
 PlayerPopup {
     id: root
     objectName: "subtitleSettingsPopup"
-    preferredWidth: 430
-    padding: 18
+    preferredWidth: 460
+    padding: 20
     background: Rectangle { color: "#202c38"; radius: 7 }
     contentItem: ScrollView {
         id: scroll
@@ -18,23 +18,26 @@ PlayerPopup {
         ColumnLayout {
             id: settings
             width: scroll.availableWidth
-            spacing: 12
+            spacing: 14
             Label { text: "Subtitle appearance"; font.pixelSize: 16; font.bold: true }
             RowLayout {
+                spacing: 12
                 Layout.fillWidth: true
-                Label { text: "Size"; Layout.preferredWidth: 70 }
+                Label { text: "Size"; Layout.preferredWidth: 88 }
                 Basic.Slider { objectName: "subtitleFontSizeSlider"; Layout.fillWidth: true; from: 12; to: 36; stepSize: 1; value: app.subtitleFontSize; onMoved: app.subtitleFontSize = value; Accessible.name: "Subtitle font size" }
                 Label { text: app.subtitleFontSize + " px"; Layout.preferredWidth: 42 }
             }
             RowLayout {
+                spacing: 12
                 Layout.fillWidth: true
-                Label { text: "Background"; Layout.preferredWidth: 70 }
+                Label { text: "Background"; Layout.preferredWidth: 88 }
                 Basic.Slider { Layout.fillWidth: true; from: 0; to: 1; stepSize: 0.05; value: app.subtitleBgOpacity; onMoved: app.subtitleBgOpacity = value; Accessible.name: "Subtitle background opacity" }
                 Label { text: Math.round(app.subtitleBgOpacity * 100) + "%"; Layout.preferredWidth: 42 }
             }
             RowLayout {
+                spacing: 12
                 Layout.fillWidth: true
-                Label { text: "Bottom gap"; Layout.preferredWidth: 70 }
+                Label { text: "Bottom gap"; Layout.preferredWidth: 88 }
                 Basic.Slider {
                     objectName: "subtitleBottomGapSlider"
                     Layout.fillWidth: true
@@ -55,7 +58,8 @@ PlayerPopup {
                 color: "#b3c5d7"
             }
             RowLayout {
-                Label { text: "Text color"; Layout.preferredWidth: 70 }
+                spacing: 12
+                Label { text: "Text color"; Layout.preferredWidth: 88 }
                 Repeater {
                     model: ["#ffffff", "#facc15", "#4ade80", "#f87171", "#93c5fd", "#f0abfc"]
                     Basic.Button {
@@ -75,6 +79,7 @@ PlayerPopup {
             }
             Label { text: "Timing offset"; font.bold: true; Layout.topMargin: 8 }
             RowLayout {
+                spacing: 12
                 Repeater {
                     model: [-2, -0.5, 0.5, 2]
                     DesktopButton {
@@ -87,6 +92,7 @@ PlayerPopup {
             }
             Label { text: "Export"; font.bold: true; Layout.topMargin: 8 }
             RowLayout {
+                spacing: 12
                 Repeater {
                     model: ["SRT", "VTT", "TXT"]
                     DesktopButton {
@@ -102,6 +108,7 @@ PlayerPopup {
                 }
             }
             RowLayout {
+                spacing: 12
                 Layout.topMargin: 8
                 DesktopButton { text: "Generate subtitles…"; onClicked: { root.close(); app.openSubtitleGenerator(); } }
                 DesktopButton { text: "Done"; onClicked: root.close() }

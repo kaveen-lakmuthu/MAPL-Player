@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../components"
 
 PlayerPopup {
     id: root
@@ -19,6 +20,7 @@ PlayerPopup {
     contentItem: ColumnLayout {
         spacing: 14
         RowLayout {
+            spacing: 8
             Layout.fillWidth: true
             Label {
                 text: "Whisper models"
@@ -27,7 +29,7 @@ PlayerPopup {
                 font.bold: true
                 Layout.fillWidth: true
             }
-            ToolButton {
+            DesktopButton {
                 text: "Close"
                 onClicked: root.close()
             }
@@ -60,6 +62,7 @@ PlayerPopup {
                     anchors.margins: 12
                     spacing: 8
                     RowLayout {
+                        spacing: 8
                         Layout.fillWidth: true
                         Label {
                             text: row.modelData.title + " · " + root.sizeLabel(row.modelData.expectedBytes)
@@ -93,20 +96,21 @@ PlayerPopup {
                         value: app.modelDownloader.progress
                     }
                     RowLayout {
-                        Button {
+                        spacing: 8
+                        DesktopButton {
                             objectName: "downloadModel_" + row.modelData.name
                             text: row.modelData.present ? "Download again" : "Download"
                             enabled: !app.modelDownloader.isBusy && !row.modelData.inUse
                             onClicked: app.modelDownloader.startDownload(row.modelData.name)
                         }
-                        Button {
+                        DesktopButton {
                             objectName: "deleteModel_" + row.modelData.name
                             text: "Delete"
                             visible: row.modelData.present
                             enabled: !app.modelDownloader.isBusy && !row.modelData.inUse
                             onClicked: app.modelDownloader.deleteModel(row.modelData.name)
                         }
-                        Button {
+                        DesktopButton {
                             objectName: "cancelModel_" + row.modelData.name
                             text: "Cancel"
                             visible: app.modelDownloader.isBusy && app.modelDownloader.activeModel === row.modelData.name

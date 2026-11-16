@@ -1,13 +1,14 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../components"
 
 PlayerPopup {
     id: root
     objectName: "recentFilesMenu"
     preferredWidth: 480
-    height: Math.min(contentColumn.implicitHeight + 32, parent.height - margins * 2)
-    padding: 16
+    height: Math.min(contentColumn.implicitHeight + padding * 2, parent.height - margins * 2)
+    padding: 20
     background: Rectangle {
         color: "#0f172a"
         radius: 12
@@ -17,6 +18,7 @@ PlayerPopup {
         id: contentColumn
         spacing: 12
         RowLayout {
+            spacing: 8
             Layout.fillWidth: true
             Label {
                 text: "Recent files"
@@ -25,7 +27,7 @@ PlayerPopup {
                 font.bold: true
                 Layout.fillWidth: true
             }
-            ToolButton {
+            DesktopButton {
                 objectName: "closeRecentFilesButton"
                 text: "Close"
                 onClicked: root.close()
@@ -52,6 +54,8 @@ PlayerPopup {
                 required property var modelData
                 width: files.width
                 height: 64
+                horizontalPadding: 12
+                verticalPadding: 10
                 enabled: modelData.available
                 objectName: "recentFileEntry"
                 background: Rectangle {
@@ -59,7 +63,7 @@ PlayerPopup {
                     radius: 6
                 }
                 contentItem: ColumnLayout {
-                    spacing: 3
+                    spacing: 4
                     Label {
                         textFormat: Text.PlainText
                         text: entry.modelData.title + (entry.modelData.available ? "" : " (unavailable)")
@@ -85,7 +89,7 @@ PlayerPopup {
                 }
             }
         }
-        Button {
+        DesktopButton {
             objectName: "clearRecentFilesButton"
             text: "Clear recent files"
             enabled: app.playbackHistory.recentFiles.length > 0

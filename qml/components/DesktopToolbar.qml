@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Controls
-import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
 Rectangle {
@@ -13,27 +12,27 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 8
-        anchors.rightMargin: 8
-        spacing: 5
+        anchors.leftMargin: 12
+        anchors.rightMargin: 12
+        spacing: 8
         DesktopButton {
             id: fileButton
             objectName: "fileMenuButton"
             text: "File"
             hint: "Open files and recent media"
             onClicked: fileMenu.open()
-            Basic.Menu {
+            DesktopMenu {
                 id: fileMenu
                 objectName: "fileMenu"
-                y: fileButton.height + 4
-                width: 250
-                Basic.MenuItem { text: "Open media…"; onTriggered: app.openMediaDialog() }
-                Basic.MenuItem { text: "Open XSPF playlist…"; onTriggered: app.openPlaylistDialog() }
-                Basic.MenuItem { text: "Load lyrics or subtitles…"; onTriggered: app.openLyricsDialog() }
-                Basic.MenuSeparator {}
-                Basic.MenuItem { objectName: "recentFilesButton"; text: "Recent files…"; onTriggered: app.openRecentFiles() }
-                Basic.MenuSeparator {}
-                Basic.MenuItem { text: "Quit"; onTriggered: app.close() }
+                y: fileButton.height + 6
+                width: 260
+                DesktopMenuItem { text: "Open media…"; onTriggered: app.openMediaDialog() }
+                DesktopMenuItem { text: "Open XSPF playlist…"; onTriggered: app.openPlaylistDialog() }
+                DesktopMenuItem { text: "Load lyrics or subtitles…"; onTriggered: app.openLyricsDialog() }
+                DesktopMenuSeparator {}
+                DesktopMenuItem { objectName: "recentFilesButton"; text: "Recent files…"; onTriggered: app.openRecentFiles() }
+                DesktopMenuSeparator {}
+                DesktopMenuItem { text: "Quit"; onTriggered: app.close() }
             }
         }
         DesktopButton { objectName: "videoViewButton"; text: "Video"; selected: app.mediaView === "video"; onClicked: app.showMediaView("video") }
@@ -44,7 +43,7 @@ Rectangle {
         DesktopButton {
             objectName: "thumbnailButton"
             glyph: "image"
-            text: "Thumbnail"
+            text: root.width >= 760 ? "Thumbnail" : ""
             hint: "Save the current video frame as this track’s thumbnail"
             enabled: app.currentTrackIndex >= 0 && app.mediaPlayer.hasVideo && app.playerController.hasVideoFrame
             onClicked: app.captureCurrentThumbnail()
@@ -56,55 +55,55 @@ Rectangle {
             text: root.width >= 700 ? "Options" : ""
             hint: "Playback, subtitles and appearance options"
             onClicked: optionsMenu.open()
-            Basic.Menu {
+            DesktopMenu {
                 id: optionsMenu
                 objectName: "optionsMenu"
                 x: optionsButton.width - width
-                y: optionsButton.height + 4
-                width: 270
-                Basic.Menu {
+                y: optionsButton.height + 6
+                width: 280
+                DesktopMenu {
                     title: "Playback and audio"
-                    Basic.MenuItem { text: "Audio tracks, speed and delay…"; onTriggered: app.openPlaybackOptions() }
-                    Basic.MenuItem {
+                    DesktopMenuItem { text: "Audio tracks, speed and delay…"; onTriggered: app.openPlaybackOptions() }
+                    DesktopMenuItem {
                         text: "Loop playlist"; checkable: true; checked: app.loopPlaylist
                         onTriggered: { app.loopPlaylist = !app.loopPlaylist; app.playerController.saveLoop(app.loopPlaylist); }
                     }
-                    Basic.MenuItem {
+                    DesktopMenuItem {
                         text: "Auto-load folder files"; checkable: true; checked: app.playFolderToggle
                         onTriggered: { app.playFolderToggle = !app.playFolderToggle; app.playerController.savePlayFolderToggle(app.playFolderToggle); }
                     }
                 }
-                Basic.Menu {
+                DesktopMenu {
                     objectName: "subtitleOptionsMenu"
                     title: "Subtitles"
-                    Basic.MenuItem { text: "Load lyrics or subtitles…"; onTriggered: app.openLyricsDialog() }
-                    Basic.MenuItem { text: "Appearance, timing and export…"; onTriggered: app.openSubtitleSettings() }
-                    Basic.MenuItem { text: "Choose subtitle track…"; enabled: app.availableSubtitles.length > 0; onTriggered: app.subtitlePickerVisible = true }
-                    Basic.MenuItem { text: "Generate lyrics and subtitles…"; onTriggered: app.openSubtitleGenerator() }
-                    Basic.MenuItem { objectName: "modelsButton"; text: "Whisper models…"; onTriggered: app.openModelManager() }
-                    Basic.MenuItem { text: "Clear lyrics and subtitles"; enabled: app.subtitleChunks.length > 0 || app.currentLyrics !== ""; onTriggered: app.clearSubtitles() }
+                    DesktopMenuItem { text: "Load lyrics or subtitles…"; onTriggered: app.openLyricsDialog() }
+                    DesktopMenuItem { text: "Appearance, timing and export…"; onTriggered: app.openSubtitleSettings() }
+                    DesktopMenuItem { text: "Choose subtitle track…"; enabled: app.availableSubtitles.length > 0; onTriggered: app.subtitlePickerVisible = true }
+                    DesktopMenuItem { text: "Generate lyrics and subtitles…"; onTriggered: app.openSubtitleGenerator() }
+                    DesktopMenuItem { objectName: "modelsButton"; text: "Whisper models…"; onTriggered: app.openModelManager() }
+                    DesktopMenuItem { text: "Clear lyrics and subtitles"; enabled: app.subtitleChunks.length > 0 || app.currentLyrics !== ""; onTriggered: app.clearSubtitles() }
                 }
-                Basic.Menu {
+                DesktopMenu {
                     objectName: "appearanceMenu"
                     title: "Appearance"
-                    Basic.MenuItem {
+                    DesktopMenuItem {
                         objectName: "ambientToggle"
                         text: "Ambient color"; checkable: true; checked: app.ambientEnabled
                         onTriggered: app.ambientEnabled = !app.ambientEnabled
                     }
-                    Basic.Menu {
+                    DesktopMenu {
                         title: "Ambient strength"
-                        Basic.MenuItem { text: "5%"; checkable: true; checked: Math.abs(app.ambientStrength - 0.05) < 0.001; onTriggered: app.ambientStrength = 0.05 }
-                        Basic.MenuItem { text: "12%"; checkable: true; checked: Math.abs(app.ambientStrength - 0.12) < 0.001; onTriggered: app.ambientStrength = 0.12 }
-                        Basic.MenuItem { text: "20%"; checkable: true; checked: Math.abs(app.ambientStrength - 0.20) < 0.001; onTriggered: app.ambientStrength = 0.20 }
-                        Basic.MenuItem { text: "25%"; checkable: true; checked: Math.abs(app.ambientStrength - 0.25) < 0.001; onTriggered: app.ambientStrength = 0.25 }
+                        DesktopMenuItem { text: "5%"; checkable: true; checked: Math.abs(app.ambientStrength - 0.05) < 0.001; onTriggered: app.ambientStrength = 0.05 }
+                        DesktopMenuItem { text: "12%"; checkable: true; checked: Math.abs(app.ambientStrength - 0.12) < 0.001; onTriggered: app.ambientStrength = 0.12 }
+                        DesktopMenuItem { text: "20%"; checkable: true; checked: Math.abs(app.ambientStrength - 0.20) < 0.001; onTriggered: app.ambientStrength = 0.20 }
+                        DesktopMenuItem { text: "25%"; checkable: true; checked: Math.abs(app.ambientStrength - 0.25) < 0.001; onTriggered: app.ambientStrength = 0.25 }
                     }
-                    Basic.MenuItem { text: "Audio visualizer"; checkable: true; checked: app.visualizerEnabled; onTriggered: app.visualizerEnabled = !app.visualizerEnabled }
-                    Basic.MenuItem { text: "Reduce motion"; checkable: true; checked: app.reduceMotion; onTriggered: app.reduceMotion = !app.reduceMotion }
+                    DesktopMenuItem { text: "Audio visualizer"; checkable: true; checked: app.visualizerEnabled; onTriggered: app.visualizerEnabled = !app.visualizerEnabled }
+                    DesktopMenuItem { text: "Reduce motion"; checkable: true; checked: app.reduceMotion; onTriggered: app.reduceMotion = !app.reduceMotion }
                 }
-                Basic.MenuItem { text: "Fullscreen"; onTriggered: app.toggleFullscreen() }
-                Basic.MenuSeparator {}
-                Basic.MenuItem { text: "About MAPL…"; onTriggered: app.openAboutDialog() }
+                DesktopMenuItem { text: "Fullscreen"; onTriggered: app.toggleFullscreen() }
+                DesktopMenuSeparator {}
+                DesktopMenuItem { text: "About MAPL…"; onTriggered: app.openAboutDialog() }
             }
         }
     }

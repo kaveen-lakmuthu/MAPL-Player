@@ -9,9 +9,9 @@ PlayerPopup {
     preferredWidth: 380
     anchors.centerIn: null
     x: Math.max(margins, parent.width - width - 12)
-    y: Math.max(margins, parent.height - height - (app.mediaView === "audio" && !app.panelExpanded ? 116 : 72) - 8)
+    y: Math.max(margins, parent.height - height - (app.fullscreenVideo ? 84 : app.mediaView === "audio" && !app.panelExpanded ? 116 : 72) - 12)
     modal: false
-    padding: 14
+    padding: 20
     background: Rectangle { color: "#202c38"; radius: 7 }
     contentItem: ScrollView {
         id: scroll

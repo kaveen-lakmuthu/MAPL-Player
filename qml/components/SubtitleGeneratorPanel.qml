@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
 
 ColumnLayout {
@@ -15,21 +14,21 @@ ColumnLayout {
         columnSpacing: 12
         rowSpacing: 10
         Label { text: "Model" }
-        Basic.ComboBox {
+        DesktopComboBox {
             Layout.fillWidth: true
             model: ["Tiny · fast · 77.7 MB", "Base · accurate · 148 MB"]
             currentIndex: app.subtitleModel === "tiny" ? 0 : 1
             onActivated: app.subtitleModel = currentIndex === 0 ? "tiny" : "base"
         }
         Label { text: "Task" }
-        Basic.ComboBox {
+        DesktopComboBox {
             Layout.fillWidth: true
             model: ["Transcribe original", "Translate to English"]
             currentIndex: app.translateSubtitles ? 1 : 0
             onActivated: app.translateSubtitles = currentIndex === 1
         }
         Label { text: "Language" }
-        Basic.ComboBox {
+        DesktopComboBox {
             Layout.fillWidth: true
             model: ["Auto-Detect", "English", "Spanish", "French", "German", "Japanese", "Chinese", "Korean", "Russian", "Portuguese", "Italian"]
             currentIndex: Math.max(0, model.indexOf(app.subtitleLanguage))
@@ -38,6 +37,7 @@ ColumnLayout {
         }
     }
     RowLayout {
+        spacing: 8
         DesktopButton {
             text: "Generate"
             prominent: true

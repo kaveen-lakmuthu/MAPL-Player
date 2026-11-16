@@ -76,10 +76,11 @@ Item {
 
             RowLayout {
                 id: panelHeader
+                spacing: 8
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.margins: 8
+                anchors.margins: 12
                 height: 30
                 Text {
                     text: app.panelView === "lyrics" ? "Lyrics & Subs" : "Playlist · " + app.playlist.length
@@ -101,7 +102,7 @@ Item {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                anchors.margins: 8
+                anchors.margins: 12
                 TranscriptView { id: transcriptView; app: root.app }
                 PlaylistView { app: root.app }
             }
@@ -120,7 +121,7 @@ Item {
         parent: mediaSurface.visible ? mediaSurface : root
         anchors.top: parent.top
         anchors.right: parent.right
-        anchors.topMargin: parent === root ? panelHeader.height + 20 : 12
+        anchors.topMargin: parent === root ? panelHeader.height + panelHeader.anchors.topMargin + 12 : 12
         anchors.rightMargin: 12
         width: Math.min(360, parent.width - 24, messageLabel.implicitWidth + 24)
         height: messageLabel.implicitHeight + 14

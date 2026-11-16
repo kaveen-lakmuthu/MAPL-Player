@@ -2,11 +2,13 @@
 
 **MAPL Player** is a native desktop media player for Linux, built with **C++ and Qt6/QML**. It plays audio and video, generates subtitles offline using a local AI model, and provides compact video controls, a dedicated ambient Audio view, expandable lyrics and playlist panels, and timeline previews. Format support depends on the installed Qt Multimedia backend and codecs.
 
-> **Version 2.3.6-alpha. Alpha testing is underway.** Use `scripts/install.sh` to install for your user on Linux.
+> **Version 2.3.7-alpha. Alpha testing is underway.** Use `scripts/install.sh` to install for your user on Linux.
 
 The desktop UI redesign starts the **2.x** release series. Fixes use patch releases such as `2.0.1-alpha`; feature updates use minor releases such as `2.1.0-alpha`. Releases retain the `-alpha` suffix while alpha testing continues. The build derives the application version from `CMakeLists.txt` and exposes it in About and through `mapl-player --version`.
 
 MAPL remembers the normal window size, maximized state, Audio/Video presentation, and the open or expanded Lyrics/Playlist panel between sessions. Opening a media file still selects its appropriate presentation. Fullscreen is temporary; window placement stays with the window manager.
+
+Menus and dropdowns use inset rows with room around text, checkmarks and submenu arrows. Buttons, panel headers and settings dialogs share more generous padding and group spacing while keeping the video area compact; the Thumbnail toolbar action uses its icon at narrow window widths.
 
 In fullscreen Video, move the pointer to the bottom edge to reveal a compact, translucent playback strip. It hides after 1.2 seconds of inactivity, or promptly when you move back into the picture. Hovering the strip, dragging its sliders or using a popup keeps it available. Moving elsewhere over the video only wakes the cursor; external captions stay above the strip without shifting when it appears.
 

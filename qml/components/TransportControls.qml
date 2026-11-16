@@ -22,7 +22,7 @@ Item {
         glyph: "loop"
         hint: "Loop playlist"
         selected: app.loopPlaylist
-        x: root.spacious ? 0 : playback.width + 4
+        x: root.spacious ? 0 : playback.width + 10
         anchors.verticalCenter: parent.verticalCenter
         onClicked: { app.loopPlaylist = !app.loopPlaylist; app.playerController.saveLoop(app.loopPlaylist); }
     }
@@ -42,7 +42,7 @@ Item {
         id: extras
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 4
+        spacing: 8
         DesktopButton {
             glyph: "captions"
             hint: "Choose subtitle track"

@@ -8,6 +8,6 @@ DesktopButton {
     text: app.backgroundTasks.badge
     hint: app.backgroundTasks.summary + " · Progress and cancellation"
     selected: app.backgroundTasksOpen
-    implicitHeight: 26
+    implicitHeight: 30
     onClicked: app.openBackgroundTasks()
 }

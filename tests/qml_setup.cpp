@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QDataStream>
 #include <QDir>
+#include <QtTest/qtestkeyboard.h>
 #include "ModelDownloader.h"
 #include "PlayerController.h"
 #include "PlaybackHistory.h"
@@ -52,6 +53,12 @@ signals:
 class TestSetup : public QObject
 {
     Q_OBJECT
+public:
+    Q_INVOKABLE void repeatKey(int key)
+    {
+        QTest::simulateEvent(QGuiApplication::focusWindow(), true, key,
+                             Qt::NoModifier, QStringLiteral(" "), true, 0);
+    }
 public slots:
     void applicationAvailable()
     {
@@ -91,6 +98,7 @@ public slots:
     }
     void qmlEngineAvailable(QQmlEngine *engine)
     {
+        engine->rootContext()->setContextProperty("TestInput", this);
         engine->rootContext()->setContextProperty("TestPaths", QVariantMap{
             {"mainQml", QUrl::fromLocalFile(QStringLiteral(MAPL_SOURCE_DIR "/qml/main.qml"))},
             {"audioUrl", QUrl::fromLocalFile(settings.filePath("Resume #1.wav")).toString()},

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../components"
 
 PlayerPopup {
     id: root
@@ -14,6 +15,7 @@ PlayerPopup {
     contentItem: ColumnLayout {
         spacing: 16
         RowLayout {
+            spacing: 8
             Layout.fillWidth: true
             Label {
                 text: "Audio & playback"
@@ -22,7 +24,7 @@ PlayerPopup {
                 font.bold: true
                 Layout.fillWidth: true
             }
-            ToolButton {
+            DesktopButton {
                 text: "Close"
                 onClicked: root.close()
             }
@@ -31,7 +33,7 @@ PlayerPopup {
             text: "Audio track"
             color: "#cbd5e1"
         }
-        ComboBox {
+        DesktopComboBox {
             id: audioTrack
             objectName: "audioTrackSelector"
             Layout.fillWidth: true
@@ -47,7 +49,7 @@ PlayerPopup {
             text: "Playback speed"
             color: "#cbd5e1"
         }
-        ComboBox {
+        DesktopComboBox {
             id: speed
             objectName: "playbackSpeedSelector"
             Layout.fillWidth: true
@@ -64,6 +66,7 @@ PlayerPopup {
             color: "#cbd5e1"
         }
         RowLayout {
+            spacing: 8
             SpinBox {
                 objectName: "audioDelayControl"
                 from: -2000
@@ -78,7 +81,7 @@ PlayerPopup {
                 text: "ms"
                 color: "#cbd5e1"
             }
-            Button {
+            DesktopButton {
                 text: "Reset"
                 onClicked: app.playbackOptions.audioDelayMs = 0
             }

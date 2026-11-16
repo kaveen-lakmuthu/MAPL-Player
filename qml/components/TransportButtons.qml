@@ -6,12 +6,12 @@ RowLayout {
     id: root
     required property var app
     property bool spacious: false
-    spacing: spacious ? 10 : 4
+    spacing: spacious ? 10 : 6
     DesktopButton {
         glyph: "previous"
         hint: "Previous track (P)"
         enabled: app.previousTrackIndex >= 0
-        implicitWidth: root.spacious ? 42 : 32
+        implicitWidth: root.spacious ? 42 : 34
         implicitHeight: root.spacious ? 42 : 30
         cornerRadius: root.spacious ? 21 : 5
         iconSize: root.spacious ? 20 : 18
@@ -21,7 +21,7 @@ RowLayout {
         glyph: "back"
         hint: "Back 5 seconds (Left)"
         enabled: app.mediaPlayer.seekable
-        implicitWidth: root.spacious ? 38 : 32
+        implicitWidth: root.spacious ? 38 : 34
         implicitHeight: root.spacious ? 38 : 30
         cornerRadius: root.spacious ? 19 : 5
         onClicked: app.seekRelative(-5)
@@ -41,7 +41,7 @@ RowLayout {
         glyph: "forward"
         hint: "Forward 5 seconds (Right)"
         enabled: app.mediaPlayer.seekable
-        implicitWidth: root.spacious ? 38 : 32
+        implicitWidth: root.spacious ? 38 : 34
         implicitHeight: root.spacious ? 38 : 30
         cornerRadius: root.spacious ? 19 : 5
         onClicked: app.seekRelative(5)
@@ -50,7 +50,7 @@ RowLayout {
         glyph: "next"
         hint: "Next track (N)"
         enabled: app.nextTrackIndex >= 0
-        implicitWidth: root.spacious ? 42 : 32
+        implicitWidth: root.spacious ? 42 : 34
         implicitHeight: root.spacious ? 42 : 30
         cornerRadius: root.spacious ? 21 : 5
         iconSize: root.spacious ? 20 : 18

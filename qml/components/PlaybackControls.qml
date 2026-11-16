@@ -22,7 +22,7 @@ Rectangle {
     anchors.bottom: parent.bottom
     anchors.bottomMargin: overlay ? 12 : 0
     width: overlay ? Math.min(1000, parent.width - 24) : parent.width
-    height: audioPresentation ? 116 : (overlay ? 64 : 72)
+    height: audioPresentation ? 116 : 72
     radius: overlay ? 6 : 0
     color: overlay ? Qt.rgba(app.chromeColor.r, app.chromeColor.g, app.chromeColor.b, 0.88) : app.chromeColor
     z: 100
@@ -32,10 +32,10 @@ Rectangle {
     HoverHandler { id: hover }
     ColumnLayout {
         anchors.fill: parent
-        anchors.leftMargin: root.audioPresentation ? Math.max(20, (root.width - 1000) / 2) : 12
+        anchors.leftMargin: root.audioPresentation ? Math.max(20, (root.width - 1000) / 2) : 16
         anchors.rightMargin: anchors.leftMargin
-        anchors.topMargin: root.audioPresentation ? 8 : 2
-        anchors.bottomMargin: root.audioPresentation ? 10 : (root.overlay ? 2 : 6)
+        anchors.topMargin: root.audioPresentation ? 8 : 6
+        anchors.bottomMargin: root.audioPresentation ? 10 : 6
         spacing: root.audioPresentation ? 8 : 0
         Timeline { id: timeline; app: root.app; Layout.fillWidth: true }
         TransportControls { id: transport; app: root.app; spacious: root.audioPresentation; Layout.fillWidth: true }

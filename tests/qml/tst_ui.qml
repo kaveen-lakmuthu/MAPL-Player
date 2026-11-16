@@ -515,6 +515,73 @@ TestCase {
         keyClick(Qt.Key_M);
         tryCompare(appWindow, "isMuted", true);
     }
+    function test_spaceTogglesPlaybackWithoutReloading_data() {
+        return [
+            {tag: "video-surface", view: "video", control: "surface"},
+            {tag: "audio-surface", view: "audio", control: "surface"},
+            {tag: "playlist-row", view: "video", control: "playlist"},
+            {tag: "audio-playlist-row", view: "audio", control: "playlist"},
+            {tag: "keyboard-playlist-row", view: "video", control: "focused-playlist"},
+            {tag: "fullscreen", view: "video", control: "fullscreen"},
+            {tag: "toolbar-button", view: "video", control: "fileMenuButton"},
+            {tag: "play-button", view: "video", control: "playPauseButton"},
+            {tag: "timeline", view: "video", control: "timeline"},
+            {tag: "volume", view: "video", control: "volume"}
+        ];
+    }
+    function test_spaceTogglesPlaybackWithoutReloading(data) {
+        appWindow.loadMediaFile(TestPaths.audioUrl);
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        tryVerify(function () { return appWindow.mediaPlayer.seekable; });
+        appWindow.showMediaView(data.view);
+        appWindow.requestActivate();
+        tryCompare(appWindow, "active", true);
+        if (data.control === "playlist" || data.control === "focused-playlist") {
+            appWindow.togglePanel("playlist");
+            var list = findChild(appWindow, "playlistListView");
+            waitForRendering(list);
+            mouseClick(list.itemAtIndex(0));
+            tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+            if (data.control === "focused-playlist") list.itemAtIndex(0).forceActiveFocus();
+        } else {
+            var target = appWindow.contentItem;
+            if (data.control === "fullscreen") appWindow.toggleFullscreen();
+            if (data.control === "timeline") target = appWindow.seekSlider;
+            else if (data.control === "volume") target = appWindow.volumeSlider;
+            else if (data.control !== "surface" && data.control !== "fullscreen") target = findChild(appWindow, data.control);
+            target.forceActiveFocus();
+        }
+        appWindow.seekTo(15000);
+        tryVerify(function () { return appWindow.mediaPlayer.position >= 14000; });
+        var revision = appWindow.mediaRevision;
+        var spy = createTemporaryObject(playbackStateSpy, testCase, {target: appWindow.mediaPlayer});
+        keyClick(Qt.Key_Space);
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PausedState);
+        compare(appWindow.mediaRevision, revision, "Space must not reload the focused track");
+        verify(appWindow.mediaPlayer.position >= 14000, "Pause must preserve the playback position");
+        compare(spy.count, 1, "One press must toggle playback once");
+        keyClick(Qt.Key_Space);
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        compare(appWindow.mediaRevision, revision);
+        verify(appWindow.mediaPlayer.position >= 14000, "Resume must not restart the track");
+        compare(spy.count, 2);
+        verify(!appWindow.modalDialogOpen, "Space must not activate the focused toolbar button");
+    }
+    function test_heldSpaceTogglesOnlyOnce() {
+        appWindow.loadMediaFile(TestPaths.audioUrl);
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        appWindow.requestActivate();
+        tryCompare(appWindow, "active", true);
+        appWindow.contentItem.forceActiveFocus();
+        var spy = createTemporaryObject(playbackStateSpy, testCase, {target: appWindow.mediaPlayer});
+        keyPress(Qt.Key_Space);
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PausedState);
+        for (var i = 0; i < 5; ++i)
+            TestInput.repeatKey(Qt.Key_Space);
+        keyRelease(Qt.Key_Space);
+        compare(appWindow.mediaPlayer.playbackState, MediaPlayer.PausedState);
+        compare(spy.count, 1, "Holding Space must not toggle playback repeatedly");
+    }
     function test_volumeArrowsAfterFocusingControls_data() {
         return [
             {tag: "startup", control: "startup"},
@@ -847,7 +914,7 @@ TestCase {
         waitForRendering(surface);
         compare(surface.width, appWindow.width);
         compare(surface.height, appWindow.height);
-        compare(controls.height, 64);
+        compare(controls.height, 72);
         verify(controls.width <= 1000 && controls.width <= appWindow.width - 24);
         compare(controls.x, (appWindow.width - controls.width) / 2);
         compare(controls.y + controls.height, surface.height - 12);
