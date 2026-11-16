@@ -39,6 +39,10 @@ The executable is then `build/mapl-player`, ready for `./scripts/install.sh`. Th
 - Whisper cancellation during extraction or inference, late completion races, temporary-file cleanup and retry after cancellation.
 - Loading every extracted application view, transcript and popup without broken bindings.
 - Popup centering and bounds across window sizes, keyboard focus, modal shortcut isolation, fullscreen Escape handling and file chooser ownership.
+- Fullscreen bottom-edge control reveal, short idle and pointer-leave timeouts, independent cursor hiding, hover/slider/popup protection, and stable video/caption geometry.
+- Adjustable subtitle reading position, saved bottom gap, and space for tall captions in small windows.
+- Subtitle size changes through the settings slider, stable rendered font size across fullscreen transitions, and size/colour/background restoration after closing immediately after an adjustment.
+- Video single-click pause/resume and complete double-click sequences entering/leaving fullscreen without even a temporary playback-state change.
 - Volume arrow keys immediately after startup and with timeline, volume or sidebar controls focused. The QML harness uses the same `QApplication` startup as the player, and dialog tests wait for closing animations before checking restored shortcuts.
 - Wheel volume control on audio/video and volume controls, high-resolution deltas, bounds and unmuting, while transcripts, playlists and modal panels retain normal scrolling.
 - Full application builds also copy the executable to an otherwise empty temporary directory and test application-menu startup and Open With (paths and file URLs), with isolated settings and a private D-Bus session.

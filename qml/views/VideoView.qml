@@ -19,26 +19,38 @@ Item {
         // Mouse area to capture hover and double clicks for fullscreen
         MouseArea {
             id: videoMouseArea
+            objectName: "videoPointerArea"
             anchors.fill: parent
             hoverEnabled: true
             preventStealing: true
 
-            cursorShape: (app.visibility === Window.FullScreen && !app.controlsVisible) ? Qt.BlankCursor : Qt.ArrowCursor
+            cursorShape: (app.fullscreenVideo && !app.fullscreenCursorVisible) ? Qt.BlankCursor : Qt.ArrowCursor
 
-            onPositionChanged: {
-                if (app.visibility === Window.FullScreen) {
-                    app.controlsVisible = true;
-                    app.restartControlsHideTimer();
-                }
+            // Reveal from the bottom edge, without summoning the bar over the
+            // picture whenever the mouse moves. Cursor inactivity is separate.
+            onEntered: app.handleFullscreenPointer(mouseY >= height - 20)
+            onPositionChanged: app.handleFullscreenPointer(mouseY >= height - 20)
+            onVisibleChanged: {
+                if (!visible && singleClickTimer) singleClickTimer.stop();
             }
-            onDoubleClicked: {
+            onDoubleClicked: mouse => {
+                mouse.accepted = true;
+                singleClickTimer.stop();
                 app.toggleFullscreen();
             }
-            onClicked: mouse => {
-                if (app.mediaPlayer.playbackState === MediaPlayer.PlayingState) {
-                    app.mediaPlayer.pause();
-                } else {
-                    app.playCurrentTrack();
+            onClicked: {
+                singleClickTimer.mediaRevision = app.mediaRevision;
+                singleClickTimer.restart();
+            }
+            Timer {
+                id: singleClickTimer
+                property int mediaRevision: -1
+                // The first click also belongs to a double click. Wait until
+                // it can be treated as a single click without pausing first.
+                interval: Qt.styleHints.mouseDoubleClickInterval
+                onTriggered: {
+                    if (root.visible && !app.modalDialogOpen && mediaRevision === app.mediaRevision)
+                        app.togglePlayPause();
                 }
             }
         }

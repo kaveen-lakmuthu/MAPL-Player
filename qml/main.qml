@@ -44,8 +44,10 @@ ApplicationWindow {
     readonly property bool textInputFocused: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
     readonly property bool modalDialogOpen: playbackOptionsPopup.visible || resumeDialog.visible || modelManager.visible || recentFilesMenu.visible || aboutModal.visible || subtitlePickerPopup.visible || chaptersPopup.visible || fileDialogs.dialogOpen || subtitleSettings.visible || generatorDialog.visible || tasksPopup.visible || playerLayout.menuOpen
     onModalDialogOpenChanged: {
-        if (modalDialogOpen)
+        if (modalDialogOpen) {
             controlsVisible = true;
+            fullscreenCursorVisible = true;
+        }
     }
     property alias playbackOptions: playbackOptionsBackend
     property alias desktopControls: mpris
@@ -183,6 +185,13 @@ ApplicationWindow {
     }
 
     onClosing: {
+        // Alias changes are written on a delay. Save the final subtitle
+        // appearance explicitly before syncing, even after a quick adjustment.
+        desktopUiSettings.setValue("subtitleFontSize", subtitleFontSize);
+        desktopUiSettings.setValue("subtitleTextColor", subtitleTextColor);
+        desktopUiSettings.setValue("subtitleBgOpacity", subtitleBgOpacity);
+        desktopUiSettings.setValue("subtitleBottomMarginPercent", subtitleBottomMarginPercent);
+        desktopUiSettings.sync();
         layoutState.save();
         memory.checkpoint();
         history.sync();
@@ -211,7 +220,28 @@ ApplicationWindow {
     }
 
     function restartControlsHideTimer() {
-        controlsHideTimer.restart();
+        fullscreenCursorVisible = true;
+        if (fullscreenVideo && fullscreenControlsCanHide) {
+            controlsDismissTimer.stop();
+            controlsHideTimer.restart();
+            fullscreenCursorTimer.restart();
+        }
+    }
+    function handleFullscreenPointer(nearBottom) {
+        if (!fullscreenVideo) return;
+        fullscreenCursorVisible = true;
+        if (!fullscreenControlsCanHide) return;
+        fullscreenCursorTimer.restart();
+        if (nearBottom) {
+            controlsVisible = true;
+            restartControlsHideTimer();
+        } else {
+            hideFullscreenControlsSoon();
+        }
+    }
+    function hideFullscreenControlsSoon() {
+        if (fullscreenVideo && controlsVisible && fullscreenControlsCanHide && !controlsDismissTimer.running)
+            controlsDismissTimer.start();
     }
     function openAboutDialog() {
         aboutModal.open();
@@ -237,8 +267,11 @@ ApplicationWindow {
     property var subtitleChunks: []
     property string activeSubtitleText: ""
     property int subtitleFontSize: 18
+    onSubtitleFontSizeChanged: subtitleFontSize = Math.max(12, Math.min(36, subtitleFontSize))
     property string subtitleTextColor: "#ffffff"
     property real subtitleBgOpacity: 0.55
+    property int subtitleBottomMarginPercent: 12
+    onSubtitleBottomMarginPercentChanged: subtitleBottomMarginPercent = Math.max(5, Math.min(25, subtitleBottomMarginPercent))
     property string transcriptSearchQuery: ""
     property int currentActiveSubtitleIndex: -1
     property int mediaRevision: 0
@@ -318,6 +351,17 @@ ApplicationWindow {
     property string currentThumbnailDataUrl: ""
     property string currentTimelinePreviewSheet: ""
     property bool controlsVisible: true
+    property bool fullscreenCursorVisible: true
+    readonly property bool fullscreenVideo: visibility === Window.FullScreen && mediaView === "video" && !panelExpanded
+    readonly property bool fullscreenControlsCanHide: !playerLayout.controlsHovered && !playerLayout.controlsInteracting && !modalDialogOpen
+    onFullscreenControlsCanHideChanged: {
+        if (fullscreenControlsCanHide) hideFullscreenControlsSoon();
+        else controlsDismissTimer.stop();
+    }
+    onFullscreenVideoChanged: {
+        controlsVisible = true;
+        fullscreenCursorVisible = true;
+    }
 
     // Subtitle track selection state
     property var availableSubtitles: []      // [{label, url, isEmbedded, embeddedIndex}]
@@ -363,12 +407,27 @@ ApplicationWindow {
 
     Timer {
         id: controlsHideTimer
-        interval: 3000
-        running: window.visibility === Window.FullScreen && window.mediaView === "video" && !window.panelExpanded && !playerLayout.controlsHovered && !window.modalDialogOpen
+        interval: 1200
+        running: window.fullscreenVideo && window.controlsVisible && window.fullscreenControlsCanHide
         repeat: false
         onTriggered: {
-            controlsVisible = false;
+            if (window.fullscreenVideo && window.fullscreenControlsCanHide)
+                window.controlsVisible = false;
         }
+    }
+    Timer {
+        id: controlsDismissTimer
+        interval: 180
+        onTriggered: {
+            if (window.fullscreenVideo && window.fullscreenControlsCanHide)
+                window.controlsVisible = false;
+        }
+    }
+    Timer {
+        id: fullscreenCursorTimer
+        interval: 1200
+        running: window.fullscreenVideo && window.fullscreenCursorVisible && window.fullscreenControlsCanHide
+        onTriggered: window.fullscreenCursorVisible = false
     }
 
     Shortcut {
@@ -497,11 +556,16 @@ ApplicationWindow {
     }
     Behavior on chromeColor { ColorAnimation { duration: window.reduceMotion ? 0 : 700; easing.type: Easing.InOutQuad } }
     Settings {
+        id: desktopUiSettings
         category: "DesktopUI"
         property alias ambientEnabled: window.ambientEnabled
         property alias ambientStrength: window.ambientStrength
         property alias visualizerEnabled: window.visualizerEnabled
         property alias reduceMotion: window.reduceMotion
+        property alias subtitleFontSize: window.subtitleFontSize
+        property alias subtitleTextColor: window.subtitleTextColor
+        property alias subtitleBgOpacity: window.subtitleBgOpacity
+        property alias subtitleBottomMarginPercent: window.subtitleBottomMarginPercent
     }
 
     // --- C++ Backend Elements ---

@@ -23,7 +23,7 @@ PlayerPopup {
             RowLayout {
                 Layout.fillWidth: true
                 Label { text: "Size"; Layout.preferredWidth: 70 }
-                Basic.Slider { Layout.fillWidth: true; from: 12; to: 36; stepSize: 1; value: app.subtitleFontSize; onMoved: app.subtitleFontSize = value; Accessible.name: "Subtitle font size" }
+                Basic.Slider { objectName: "subtitleFontSizeSlider"; Layout.fillWidth: true; from: 12; to: 36; stepSize: 1; value: app.subtitleFontSize; onMoved: app.subtitleFontSize = value; Accessible.name: "Subtitle font size" }
                 Label { text: app.subtitleFontSize + " px"; Layout.preferredWidth: 42 }
             }
             RowLayout {
@@ -31,6 +31,28 @@ PlayerPopup {
                 Label { text: "Background"; Layout.preferredWidth: 70 }
                 Basic.Slider { Layout.fillWidth: true; from: 0; to: 1; stepSize: 0.05; value: app.subtitleBgOpacity; onMoved: app.subtitleBgOpacity = value; Accessible.name: "Subtitle background opacity" }
                 Label { text: Math.round(app.subtitleBgOpacity * 100) + "%"; Layout.preferredWidth: 42 }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Label { text: "Bottom gap"; Layout.preferredWidth: 70 }
+                Basic.Slider {
+                    objectName: "subtitleBottomGapSlider"
+                    Layout.fillWidth: true
+                    from: 5
+                    to: 25
+                    stepSize: 1
+                    value: app.subtitleBottomMarginPercent
+                    onMoved: app.subtitleBottomMarginPercent = value
+                    Accessible.name: "Subtitle bottom gap"
+                }
+                Label { text: app.subtitleBottomMarginPercent + "%"; Layout.preferredWidth: 42 }
+            }
+            Label {
+                Layout.fillWidth: true
+                text: "Increase the gap to move subtitles higher. Kept above fullscreen controls."
+                wrapMode: Text.Wrap
+                font.pixelSize: 11
+                color: "#b3c5d7"
             }
             RowLayout {
                 Label { text: "Text color"; Layout.preferredWidth: 70 }

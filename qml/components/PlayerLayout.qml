@@ -11,6 +11,7 @@ ColumnLayout {
     property alias seekSlider: playerContent.seekSlider
     property alias volumeSlider: playerContent.volumeSlider
     readonly property bool controlsHovered: playerContent.controlsHovered
+    readonly property bool controlsInteracting: playerContent.controlsInteracting
     readonly property bool menuOpen: toolbar.menuOpen
     anchors.fill: parent
     spacing: 0

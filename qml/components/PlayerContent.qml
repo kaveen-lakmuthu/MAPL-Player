@@ -13,7 +13,8 @@ Item {
     property alias seekSlider: controlsPanel.seekSlider
     property alias volumeSlider: controlsPanel.volumeSlider
     readonly property bool controlsHovered: controlsPanel.controlsHovered
-    readonly property bool overlayControls: app.visibility === Window.FullScreen && app.mediaView === "video" && !app.panelExpanded
+    readonly property bool controlsInteracting: controlsPanel.controlsInteracting
+    readonly property bool overlayControls: app.fullscreenVideo
 
     RowLayout {
         anchors.top: parent.top
@@ -36,9 +37,15 @@ Item {
             VolumeWheelHandler { app: root.app }
 
             Rectangle {
+                objectName: "videoSubtitleOverlay"
+                readonly property real preferredBottomMargin: Math.max(
+                    Math.round(parent.height * app.subtitleBottomMarginPercent / 100),
+                    root.overlayControls ? controlsPanel.height + controlsPanel.anchors.bottomMargin + 12 : 24)
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
-                anchors.bottomMargin: root.overlayControls && controlsPanel.visible ? controlsPanel.height + 12 : 16
+                // Scale the reading position with the picture area and leave
+                // room for tall captions without shifting when controls hide.
+                anchors.bottomMargin: Math.min(preferredBottomMargin, Math.max(12, parent.height - height - 12))
                 width: Math.min(parent.width - 32, subText.implicitWidth + 24)
                 height: subText.implicitHeight + 12
                 color: Qt.rgba(0, 0, 0, app.subtitleBgOpacity)
@@ -46,6 +53,7 @@ Item {
                 visible: app.mediaView === "video" && app.activeSubtitleText !== ""
                 Text {
                     id: subText
+                    objectName: "videoSubtitleText"
                     anchors.centerIn: parent
                     width: parent.width - 24
                     text: app.activeSubtitleText
@@ -106,12 +114,15 @@ Item {
         overlay: root.overlayControls
     }
 
-    // Notifications and long-running jobs do not resize the picture or controls.
+    // Keep brief messages clear of captions and side-panel header buttons.
     Rectangle {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: controlsPanel.top
-        anchors.bottomMargin: 10
-        width: Math.min(parent.width - 24, messageLabel.implicitWidth + 24)
+        objectName: "playbackNotification"
+        parent: mediaSurface.visible ? mediaSurface : root
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: parent === root ? panelHeader.height + 20 : 12
+        anchors.rightMargin: 12
+        width: Math.min(360, parent.width - 24, messageLabel.implicitWidth + 24)
         height: messageLabel.implicitHeight + 14
         radius: 5
         color: "#e6202c38"
@@ -120,11 +131,11 @@ Item {
         Text {
             id: messageLabel
             anchors.centerIn: parent
-            width: Math.min(implicitWidth, root.width - 48)
+            width: parent.width - 24
             text: app.messageText
             color: "#edf3fa"
             font.pixelSize: 12
-            wrapMode: Text.WordWrap
+            wrapMode: Text.Wrap
         }
     }
 }

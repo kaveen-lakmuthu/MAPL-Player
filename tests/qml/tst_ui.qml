@@ -10,6 +10,10 @@ TestCase {
     name: "ApplicationComponents"
     when: windowShown
     property var appWindow
+    Component {
+        id: playbackStateSpy
+        SignalSpy { signalName: "playbackStateChanged" }
+    }
     function init() {
         failOnWarning(/(ReferenceError|TypeError|is not defined|Cannot assign|Binding loop)/);
         var component = Qt.createComponent(TestPaths.mainQml);
@@ -20,6 +24,10 @@ TestCase {
         });
         verify(appWindow !== null);
         appWindow.playbackOptions.rate = 1;
+        appWindow.subtitleFontSize = 18;
+        appWindow.subtitleTextColor = "#ffffff";
+        appWindow.subtitleBgOpacity = 0.55;
+        appWindow.subtitleBottomMarginPercent = 12;
         appWindow.playbackHistory.clearRecentFiles();
         appWindow.playbackHistory.clearPosition(TestPaths.audioUrl);
         wait(20);
@@ -161,6 +169,8 @@ TestCase {
         tryCompare(popup, "opened", true);
         verify(appWindow.modalDialogOpen);
         verify(appWindow.controlsVisible);
+        wait(1400);
+        verify(appWindow.controlsVisible, "A task popup must prevent fullscreen controls from timing out");
         mouseClick(findChild(appWindow, "cancelSubtitleGeneration"));
         verify(!appWindow.subtitleGenerator.isProcessing);
         popup.close();
@@ -595,6 +605,266 @@ TestCase {
         mouseWheel(slider, slider.width / 2, slider.height / 2, 0, 120);
         compare(slider.value, 55, "The handler and slider must not both change volume");
     }
+    function prepareVideoClickTest(paused) {
+        appWindow.loadMediaFile(TestPaths.audioUrl);
+        tryVerify(function () { return appWindow.mediaPlayer.seekable; });
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        if (paused)
+            appWindow.mediaPlayer.pause();
+        appWindow.showMediaView("video");
+        var video = findChild(appWindow, "videoPointerArea");
+        waitForRendering(video);
+        return video;
+    }
+    function test_videoDoubleClickPreservesPlayback_data() {
+        return [{tag: "playing", paused: false}, {tag: "paused", paused: true}];
+    }
+    function test_videoDoubleClickPreservesPlayback(data) {
+        var video = prepareVideoClickTest(data.paused);
+        var state = appWindow.mediaPlayer.playbackState;
+        var source = appWindow.mediaPlayer.source.toString();
+        var spy = createTemporaryObject(playbackStateSpy, testCase, {target: appWindow.mediaPlayer});
+        verify(spy.valid);
+        for (var visibility of [Window.FullScreen, Window.Windowed]) {
+            // Include the initial press/release: sending only a DoubleClick
+            // event would miss the single-click pause that caused this bug.
+            mouseDoubleClickSequence(video);
+            tryCompare(appWindow, "visibility", visibility);
+            compare(appWindow.mediaPlayer.playbackState, state);
+            wait(Qt.styleHints.mouseDoubleClickInterval + 100);
+            compare(appWindow.mediaPlayer.playbackState, state);
+            compare(spy.count, 0, "Fullscreen must not cause even a temporary playback-state change");
+            compare(appWindow.mediaPlayer.source.toString(), source);
+        }
+    }
+    function test_videoSingleClickTogglesPlayback_data() {
+        return [
+            {tag: "windowed-pause", paused: false, fullscreen: false},
+            {tag: "windowed-resume", paused: true, fullscreen: false},
+            {tag: "fullscreen-pause", paused: false, fullscreen: true},
+            {tag: "fullscreen-resume", paused: true, fullscreen: true}
+        ];
+    }
+    function test_videoSingleClickTogglesPlayback(data) {
+        var video = prepareVideoClickTest(data.paused);
+        if (data.fullscreen) {
+            appWindow.showFullScreen();
+            waitForRendering(video);
+        }
+        var state = appWindow.mediaPlayer.playbackState;
+        var spy = createTemporaryObject(playbackStateSpy, testCase, {target: appWindow.mediaPlayer});
+        verify(spy.valid);
+        mouseClick(video);
+        compare(appWindow.mediaPlayer.playbackState, state, "The first click must allow time for a double click");
+        tryCompare(appWindow.mediaPlayer, "playbackState", data.paused ? MediaPlayer.PlayingState : MediaPlayer.PausedState,
+                   Qt.styleHints.mouseDoubleClickInterval + 500);
+        wait(Qt.styleHints.mouseDoubleClickInterval + 100);
+        compare(spy.count, 1, "One single click must toggle playback exactly once");
+        compare(appWindow.visibility, data.fullscreen ? Window.FullScreen : Window.Windowed);
+    }
+    function test_pendingVideoClickCancelledWhenViewIsHidden() {
+        var video = prepareVideoClickTest(false);
+        var spy = createTemporaryObject(playbackStateSpy, testCase, {target: appWindow.mediaPlayer});
+        mouseClick(video);
+        appWindow.showMediaView("audio");
+        appWindow.showMediaView("video");
+        wait(Qt.styleHints.mouseDoubleClickInterval + 100);
+        compare(appWindow.mediaPlayer.playbackState, MediaPlayer.PlayingState);
+        compare(spy.count, 0, "A pending click must be cancelled when leaving the Video view");
+    }
+    function test_pendingVideoClickDoesNotToggleAnotherTrack() {
+        var video = prepareVideoClickTest(false);
+        mouseClick(video);
+        appWindow.loadMediaFile(TestPaths.folderMediaUrl);
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        wait(Qt.styleHints.mouseDoubleClickInterval + 100);
+        compare(appWindow.mediaPlayer.playbackState, MediaPlayer.PlayingState);
+        compare(appWindow.mediaPlayer.source.toString(), TestPaths.folderMediaUrl);
+    }
+    function test_fullscreenControlsRevealFromBottomAndDismissOverPicture() {
+        appWindow.reduceMotion = false;
+        appWindow.showMediaView("video");
+        appWindow.showFullScreen();
+        var video = findChild(appWindow, "videoPointerArea");
+        var controls = findChild(appWindow, "playbackControls");
+        waitForRendering(video);
+        mouseMove(video, video.width / 2, video.height / 2);
+        tryCompare(controls, "visible", false, 600);
+        mouseMove(video, video.width / 2 + 20, video.height / 2);
+        verify(!controls.visible, "Moving over the picture must not summon the playback strip");
+        verify(appWindow.fullscreenCursorVisible);
+        tryCompare(appWindow, "fullscreenCursorVisible", false, 1800);
+        compare(video.cursorShape, Qt.BlankCursor);
+        mouseMove(video, video.width / 2 + 30, video.height / 2);
+        verify(appWindow.fullscreenCursorVisible, "Movement must wake the cursor independently of the controls");
+        verify(!controls.visible);
+        mouseMove(video, video.width / 2, video.height - 2);
+        tryCompare(controls, "visible", true, 300);
+        mouseMove(controls, 6, controls.height / 2);
+        tryCompare(controls, "controlsHovered", true);
+        wait(1400);
+        verify(controls.visible, "Controls must stay available while hovered");
+        verify(appWindow.fullscreenCursorVisible);
+        mouseMove(video, video.width / 2, video.height / 2);
+        tryCompare(controls, "visible", false, 600);
+    }
+    function test_fullscreenControlsIdleTimeout() {
+        appWindow.reduceMotion = true;
+        appWindow.showMediaView("video");
+        appWindow.showFullScreen();
+        var video = findChild(appWindow, "videoPointerArea");
+        var controls = findChild(appWindow, "playbackControls");
+        waitForRendering(video);
+        // The gap below the floating strip is in the reveal zone, but does not
+        // hover a control. Leaving the pointer here must still time out.
+        mouseMove(video, video.width / 2, video.height - 2);
+        verify(controls.visible);
+        verify(!controls.controlsHovered);
+        tryCompare(controls, "visible", false, 1800);
+        appWindow.showMediaView("audio");
+        wait(1400);
+        verify(controls.visible, "Audio controls must remain visible in fullscreen");
+    }
+    function test_fullscreenSliderDragKeepsControlsVisible_data() {
+        return [{tag: "seek", seek: true}, {tag: "volume", seek: false}];
+    }
+    function test_fullscreenSliderDragKeepsControlsVisible(data) {
+        appWindow.reduceMotion = true;
+        appWindow.loadMediaFile(TestPaths.audioUrl);
+        tryVerify(function () { return appWindow.mediaPlayer.seekable; });
+        appWindow.mediaPlayer.pause();
+        appWindow.showMediaView("video");
+        appWindow.showFullScreen();
+        var video = findChild(appWindow, "videoPointerArea");
+        var controls = findChild(appWindow, "playbackControls");
+        waitForRendering(video);
+        mouseMove(video, video.width / 2, video.height - 2);
+        var slider = data.seek ? appWindow.seekSlider : appWindow.volumeSlider;
+        waitForRendering(slider);
+        mousePress(slider, slider.width / 2, slider.height / 2);
+        tryCompare(slider, "pressed", true);
+        mouseMove(video, video.width / 2, video.height / 2);
+        wait(1400);
+        verify(controls.visible, "A slider must not disappear while dragging outside the strip");
+        verify(controls.controlsInteracting);
+        mouseRelease(video, video.width / 2, video.height / 2);
+        tryCompare(slider, "pressed", false);
+        tryCompare(controls, "visible", false, 600);
+    }
+    function test_subtitleAppearanceSurvivesFullscreenAndReopening() {
+        appWindow.showMediaView("video");
+        appWindow.activeSubtitleText = "Subtitle size preference";
+        appWindow.openSubtitleSettings();
+        var popup = findChild(appWindow, "subtitleSettingsPopup");
+        tryCompare(popup, "opened", true);
+        var slider = findChild(popup, "subtitleFontSizeSlider");
+        waitForRendering(slider);
+        mouseClick(slider, slider.width * 0.85, slider.height / 2);
+        var selected = appWindow.subtitleFontSize;
+        verify(selected > 18, "The size slider must increase the actual subtitle preference");
+        appWindow.subtitleTextColor = "#facc15";
+        appWindow.subtitleBgOpacity = 0.8;
+        popup.close();
+        tryCompare(popup, "visible", false);
+        var text = findChild(appWindow, "videoSubtitleText");
+        compare(text.font.pixelSize, selected);
+        for (var visibility of [Window.FullScreen, Window.Windowed, Window.FullScreen, Window.Windowed]) {
+            appWindow.toggleFullscreen();
+            tryCompare(appWindow, "visibility", visibility);
+            waitForRendering(text);
+            compare(appWindow.subtitleFontSize, selected);
+            compare(text.font.pixelSize, selected, "Fullscreen changes must preserve the rendered font size");
+        }
+        // Choose a different size and immediately close, so a delayed settings
+        // write cannot make this test pass before the close handler saves it.
+        selected = selected === 36 ? 30 : selected + 1;
+        appWindow.subtitleFontSize = selected;
+        appWindow.close();
+        var component = Qt.createComponent(TestPaths.mainQml);
+        appWindow = createTemporaryObject(component, testCase, {
+            layoutPersistenceEnabled: false,
+            desktopControlsEnabled: false
+        });
+        verify(appWindow !== null);
+        compare(appWindow.subtitleFontSize, selected, "The chosen font size must be saved before the window closes");
+        compare(appWindow.subtitleTextColor, "#facc15");
+        compare(appWindow.subtitleBgOpacity, 0.8);
+        appWindow.showMediaView("video");
+        appWindow.activeSubtitleText = "Restored subtitle size";
+        text = findChild(appWindow, "videoSubtitleText");
+        compare(text.font.pixelSize, selected);
+        appWindow.openSubtitleSettings();
+        popup = findChild(appWindow, "subtitleSettingsPopup");
+        tryCompare(popup, "opened", true);
+        compare(findChild(popup, "subtitleFontSizeSlider").value, selected);
+        popup.close();
+    }
+    function test_subtitlePositionCanBeAdjustedAndRestored() {
+        appWindow.showMediaView("video");
+        appWindow.activeSubtitleText = "A readable subtitle";
+        var caption = findChild(appWindow, "videoSubtitleOverlay");
+        waitForRendering(caption);
+        var originalY = caption.y;
+        appWindow.openSubtitleSettings();
+        var popup = findChild(appWindow, "subtitleSettingsPopup");
+        tryCompare(popup, "opened", true);
+        var slider = findChild(popup, "subtitleBottomGapSlider");
+        waitForRendering(slider);
+        mouseClick(slider, slider.width * 0.8, slider.height / 2);
+        verify(appWindow.subtitleBottomMarginPercent > 12);
+        verify(caption.y < originalY, "Increasing the bottom gap must raise subtitles");
+        var selected = appWindow.subtitleBottomMarginPercent;
+        popup.close();
+        appWindow.close();
+        appWindow.destroy();
+        appWindow = null;
+        wait(0);
+        var component = Qt.createComponent(TestPaths.mainQml);
+        appWindow = createTemporaryObject(component, testCase, {
+            layoutPersistenceEnabled: false,
+            desktopControlsEnabled: false
+        });
+        verify(appWindow !== null);
+        compare(appWindow.subtitleBottomMarginPercent, selected, "Subtitle position must survive a new application window");
+        appWindow.showMediaView("video");
+        appWindow.width = 640;
+        appWindow.height = 420;
+        appWindow.subtitleFontSize = 36;
+        appWindow.subtitleBottomMarginPercent = 25;
+        appWindow.activeSubtitleText = "First line\nSecond line\nThird line\nFourth line\nFifth line";
+        caption = findChild(appWindow, "videoSubtitleOverlay");
+        waitForRendering(caption);
+        verify(caption.y >= 12, "Tall captions must remain inside the top of the picture when they can fit");
+    }
+    function test_fullscreenStripDoesNotResizePictureOrShiftCaptions() {
+        appWindow.reduceMotion = true;
+        appWindow.showMediaView("video");
+        appWindow.showFullScreen();
+        appWindow.activeSubtitleText = "External caption";
+        var surface = findChild(appWindow, "playerSurface");
+        var controls = findChild(appWindow, "playbackControls");
+        var caption = findChild(appWindow, "videoSubtitleOverlay");
+        waitForRendering(surface);
+        compare(surface.width, appWindow.width);
+        compare(surface.height, appWindow.height);
+        compare(controls.height, 64);
+        verify(controls.width <= 1000 && controls.width <= appWindow.width - 24);
+        compare(controls.x, (appWindow.width - controls.width) / 2);
+        compare(controls.y + controls.height, surface.height - 12);
+        verify(controls.color.a < 1);
+        verify(caption.visible);
+        verify(caption.y + caption.height <= controls.y - 12);
+        verify(surface.height - caption.y - caption.height >= surface.height * 0.1,
+               "Fullscreen subtitles should leave a comfortable gap below the text");
+        var captionY = caption.y;
+        appWindow.controlsVisible = false;
+        compare(controls.visible, false);
+        compare(surface.height, appWindow.height);
+        compare(caption.y, captionY);
+        appWindow.controlsVisible = true;
+        compare(surface.height, appWindow.height);
+        compare(caption.y, captionY);
+    }
     function test_wheelRevealsFullscreenControls() {
         appWindow.currentView = "video";
         appWindow.showFullScreen();
@@ -662,6 +932,7 @@ TestCase {
     }
     function test_videoUsesWindowWithoutDecorativeMargins() {
         appWindow.showMediaView("video");
+        appWindow.activeSubtitleText = "Windowed subtitle";
         var surface = findChild(appWindow, "playerSurface");
         for (var size of [[1120, 720], [640, 420]]) {
             appWindow.width = size[0];
@@ -673,6 +944,9 @@ TestCase {
             compare(surface.width, appWindow.width);
             compare(surface.height, appWindow.height - 112);
             compare(surface.color, Qt.color("#000000"));
+            var caption = findChild(appWindow, "videoSubtitleOverlay");
+            verify(surface.height - caption.y - caption.height >= surface.height * 0.1,
+                   "Windowed subtitles must also leave room below the text");
             verify(findChild(appWindow, "thumbnailButton").visible);
             var play = findChild(appWindow, "playPauseButton");
             verify(play.visible && play.width >= 30 && play.height <= 34);

@@ -2,11 +2,21 @@
 
 **MAPL Player** is a native desktop media player for Linux, built with **C++ and Qt6/QML**. It plays audio and video, generates subtitles offline using a local AI model, and provides compact video controls, a dedicated ambient Audio view, expandable lyrics and playlist panels, and timeline previews. Format support depends on the installed Qt Multimedia backend and codecs.
 
-> **Version 2.3.1-alpha. Alpha testing is underway.** Use `scripts/install.sh` to install for your user on Linux.
+> **Version 2.3.6-alpha. Alpha testing is underway.** Use `scripts/install.sh` to install for your user on Linux.
 
 The desktop UI redesign starts the **2.x** release series. Fixes use patch releases such as `2.0.1-alpha`; feature updates use minor releases such as `2.1.0-alpha`. Releases retain the `-alpha` suffix while alpha testing continues. The build derives the application version from `CMakeLists.txt` and exposes it in About and through `mapl-player --version`.
 
 MAPL remembers the normal window size, maximized state, Audio/Video presentation, and the open or expanded Lyrics/Playlist panel between sessions. Opening a media file still selects its appropriate presentation. Fullscreen is temporary; window placement stays with the window manager.
+
+In fullscreen Video, move the pointer to the bottom edge to reveal a compact, translucent playback strip. It hides after 1.2 seconds of inactivity, or promptly when you move back into the picture. Hovering the strip, dragging its sliders or using a popup keeps it available. Moving elsewhere over the video only wakes the cursor; external captions stay above the strip without shifting when it appears.
+
+Click the video once to pause or resume; double-click to enter or leave fullscreen without changing playback. The video-surface single click waits for your system's double-click interval so the gestures stay separate. The play button and Space shortcut respond immediately.
+
+Brief notifications such as seeking, volume and track changes appear in the top-right of the playback area, clear of bottom subtitles. Longer messages wrap in a compact overlay; an open side panel keeps its header buttons unobstructed.
+
+Subtitles sit higher by default, with a bottom gap of 12% of the playback area's height that scales with window/fullscreen size. Adjust **Bottom gap** (5–25%) under **Options → Subtitles → Appearance, timing and export…**; higher values raise the text, and MAPL remembers your choice. Captions stay above the fullscreen strip without moving when it hides, and long captions leave room at the top when possible.
+
+Subtitle font size, text colour and background opacity are remembered too. Entering or leaving fullscreen keeps the chosen font size, and reopening MAPL restores the same appearance settings.
 
 Click any Playlist row to select and play that item, including in folder-loaded queues and filtered results. Filtering preserves queue positions, and selecting an item keeps the queue for automatic advancement. Entries remain individually selectable when the same file appears more than once. Files with a saved position can still offer Resume or Start over.
 
