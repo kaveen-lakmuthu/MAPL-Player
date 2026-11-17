@@ -54,9 +54,10 @@ class TestSetup : public QObject
 {
     Q_OBJECT
 public:
-    Q_INVOKABLE void repeatKey(int key)
+    Q_INVOKABLE void repeatSpace()
     {
-        QTest::simulateEvent(QGuiApplication::focusWindow(), true, key,
+        // Qt Quick Test's QML keyPress() cannot mark auto-repeat events.
+        QTest::simulateEvent(QGuiApplication::focusWindow(), true, Qt::Key_Space,
                              Qt::NoModifier, QStringLiteral(" "), true, 0);
     }
 public slots:
@@ -85,6 +86,7 @@ public slots:
             stream.writeRawData(silence.constData(), silence.size());
         }
         audio.close();
+        QFile::copy(audio.fileName(), settings.filePath("A&B #100%.wav"));
         QDir().mkpath(settings.filePath("folder-queue"));
         for (const auto *name : {"01 First.wav", "02 Middle.wav", "03 Last.wav"})
             QFile::copy(audio.fileName(), settings.filePath(QStringLiteral("folder-queue/") + name));
@@ -102,6 +104,7 @@ public slots:
         engine->rootContext()->setContextProperty("TestPaths", QVariantMap{
             {"mainQml", QUrl::fromLocalFile(QStringLiteral(MAPL_SOURCE_DIR "/qml/main.qml"))},
             {"audioUrl", QUrl::fromLocalFile(settings.filePath("Resume #1.wav")).toString()},
+            {"escapedMediaUrl", QUrl::fromLocalFile(settings.filePath("A&B #100%.wav")).toString()},
             {"folderMediaUrl", QUrl::fromLocalFile(settings.filePath("folder-queue/01 First.wav")).toString()}
         });
     }

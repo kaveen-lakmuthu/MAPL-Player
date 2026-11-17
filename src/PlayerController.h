@@ -12,6 +12,7 @@
 #include <QtQml/QQmlEngine>
 #include <QProcess>
 #include <QTemporaryDir>
+#include <QVariantMap>
 
 class BackgroundProcess;
 
@@ -45,6 +46,7 @@ public:
     Q_INVOKABLE QString getThumbnail(const QString &trackUrl) const;
     
     Q_INVOKABLE QString getCleanFileName(const QString &filePath) const;
+    Q_INVOKABLE QVariantMap parseXspf(const QString &xml, const QString &playlistUrl = QString()) const;
     Q_INVOKABLE bool writeTextToFile(const QString &filePath, const QString &content);
     Q_INVOKABLE void generateTimelinePreviews(const QString &trackUrl, double durationSec);
     Q_INVOKABLE QVariantList getFilesInFolder(const QString &fileUrl);

@@ -4,7 +4,8 @@
 #include <QFileInfo>
 #include <QUrl>
 #include <QFile>
-#include <QTextStream>
+#include <QSaveFile>
+#include <QXmlStreamReader>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QStandardPaths>
@@ -201,17 +202,86 @@ void PlayerController::handleVideoFrame(const QVideoFrame &frame)
     }
 }
 
+QVariantMap PlayerController::parseXspf(const QString &xml, const QString &playlistUrl) const
+{
+    QXmlStreamReader reader(xml);
+    const auto isElement = [&reader](const char *name) {
+        return reader.name() == QLatin1String(name)
+            && (reader.namespaceUri().isEmpty() || reader.namespaceUri() == QLatin1String("http://xspf.org/ns/0/"));
+    };
+    const auto elementBase = [&reader](const QUrl &parent) {
+        const auto base = reader.attributes().value(QLatin1String("http://www.w3.org/XML/1998/namespace"),
+                                                    QLatin1String("base"));
+        return base.isEmpty() ? parent : parent.resolved(QUrl(base.toString()));
+    };
+    if (!reader.readNextStartElement() || !isElement("playlist"))
+        return {{"tracks", QVariantList()}, {"error", tr("Invalid XSPF playlist.")}};
+
+    const auto playlistBase = elementBase(QUrl(playlistUrl));
+    QVariantList tracks;
+    while (reader.readNextStartElement()) {
+        if (!isElement("trackList")) {
+            reader.skipCurrentElement();
+            continue;
+        }
+        const auto listBase = elementBase(playlistBase);
+        while (reader.readNextStartElement()) {
+            if (!isElement("track")) {
+                reader.skipCurrentElement();
+                continue;
+            }
+            const auto trackBase = elementBase(listBase);
+            QUrl location;
+            QString title;
+            while (reader.readNextStartElement()) {
+                if (isElement("location")) {
+                    const auto locationBase = elementBase(trackBase);
+                    const auto text = reader.readElementText().trimmed();
+                    if (location.isEmpty() && !text.isEmpty()) {
+                        QUrl candidate(text);
+                        if (candidate.isRelative())
+                            candidate = locationBase.resolved(candidate);
+                        if (candidate.isValid() && !candidate.isRelative())
+                            location = candidate;
+                    }
+                } else if (isElement("title")) {
+                    const auto text = reader.readElementText().trimmed();
+                    if (title.isEmpty())
+                        title = text;
+                } else {
+                    reader.skipCurrentElement();
+                }
+            }
+            if (!location.isEmpty()) {
+                const auto url = location.toString();
+                tracks.append(QVariantMap{{"url", url}, {"title", title.isEmpty() ? getCleanFileName(url) : title}});
+            }
+        }
+    }
+    // Validate the complete document, including text after the playlist ends.
+    while (!reader.atEnd())
+        reader.readNext();
+    if (reader.hasError())
+        return {{"tracks", QVariantList()}, {"error", tr("Invalid XSPF: %1").arg(reader.errorString())}};
+    return {{"tracks", tracks}, {"error", QString()}};
+}
+
 bool PlayerController::writeTextToFile(const QString &filePath, const QString &content)
 {
     QUrl url(filePath);
     QString localPath = url.isLocalFile() ? url.toLocalFile() : filePath;
-    QFile file(localPath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+    QSaveFile file(localPath);
+    // Never fall back to truncating the destination if a temporary file
+    // cannot be created. Failed writes must leave an earlier export intact.
+    file.setDirectWriteFallback(false);
+    if (!file.open(QIODevice::WriteOnly))
         return false;
-    QTextStream out(&file);
-    out << content;
-    file.close();
-    return true;
+    const QByteArray bytes = content.toUtf8();
+    if (file.write(bytes) != bytes.size()) {
+        file.cancelWriting();
+        return false;
+    }
+    return file.commit();
 }
 
 void PlayerController::generateTimelinePreviews(const QString &trackUrl, double durationSec)
@@ -342,35 +412,31 @@ QVariantList PlayerController::findSubtitleFiles(const QString &mediaUrl)
 
     QString localPath = url.toLocalFile();
     QFileInfo fileInfo(localPath);
-    // completeBaseName strips only the last extension: "movie.en.mp4" -> "movie.en"
-    // But we want the real base without any language suffix, so use baseName of the stem
-    // Strategy: strip last extension, then use that as the glob prefix
-    QString stem = fileInfo.completeBaseName(); // "movie" from "movie.mp4", "movie.en" from "movie.en.mp4"
-    // For most cases the stem is already right (e.g. "Ben 10 Alien Swarm 2009")
+    const QString stem = fileInfo.completeBaseName();
+    const QString qualifiedPrefix = stem + '.';
     QDir dir = fileInfo.dir();
 
-    QStringList filters;
-    filters << stem + "*.srt" << stem + "*.vtt";
-    dir.setNameFilters(filters);
+    // Filter only extensions here: the media name may contain glob characters.
+    dir.setNameFilters({"*.srt", "*.vtt"});
     dir.setFilter(QDir::Files | QDir::NoSymLinks);
     dir.setSorting(QDir::Name);
 
     QFileInfoList list = dir.entryInfoList();
     for (const QFileInfo &info : list) {
+        const QString fileStem = info.completeBaseName();
+        QString label;
+        if (fileStem.compare(stem, Qt::CaseInsensitive) == 0) {
+            label = tr("Default");
+        } else if (fileStem.startsWith(qualifiedPrefix, Qt::CaseInsensitive)
+                   && fileStem.size() > qualifiedPrefix.size()) {
+            // Keep language/kind tags, but never match Episode10 to Episode1.
+            label = fileStem.mid(qualifiedPrefix.size());
+        } else {
+            continue;
+        }
         QVariantMap map;
         map["url"] = QUrl::fromLocalFile(info.absoluteFilePath()).toString();
-
-        // Extract the language label: strip the stem prefix and the file extension
-        // e.g. stem="movie", file="movie.en.srt" -> langPart=".en" -> label="en"
-        // e.g. stem="movie", file="movie.srt"    -> langPart=""    -> label="Default"
-        QString fileStem = info.completeBaseName(); // "movie.en" or "movie"
-        QString langPart;
-        if (fileStem.length() > stem.length()) {
-            langPart = fileStem.mid(stem.length()); // ".en"
-            if (langPart.startsWith('.'))
-                langPart = langPart.mid(1);          // "en"
-        }
-        map["label"] = langPart.isEmpty() ? tr("Default") : langPart;
+        map["label"] = label;
         result.append(map);
     }
 

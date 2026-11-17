@@ -2,8 +2,13 @@
 #include <memory>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QScopeGuard>
 #include <QUrl>
 #include <QVideoFrameFormat>
+#ifdef Q_OS_UNIX
+#include <csignal>
+#include <sys/resource.h>
+#endif
 #include "PlayerController.h"
 #include "BackgroundProcess.h"
 #include "ProcessFixture.h"
@@ -17,6 +22,272 @@ private slots:
     {
         QVERIFY(settingsDirectory.isValid());
         QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, settingsDirectory.path());
+    }
+    void textExport_data()
+    {
+        QTest::addColumn<bool>("fileUrl");
+        QTest::addColumn<bool>("overwrite");
+        QTest::newRow("new-path") << false << false;
+        QTest::newRow("new-url") << true << false;
+        QTest::newRow("overwrite-path") << false << true;
+        QTest::newRow("overwrite-url") << true << true;
+    }
+    void textExport()
+    {
+        QFETCH(bool, fileUrl);
+        QFETCH(bool, overwrite);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto path = directory.filePath(QStringLiteral("Subtitles #50% සිංහල.srt"));
+        if (overwrite) {
+            QFile original(path);
+            QVERIFY(original.open(QIODevice::WriteOnly));
+            QCOMPARE(original.write("Previous subtitles"), 18);
+        }
+        const auto content = QStringLiteral("1\n00:00:01,000 --> 00:00:02,000\nසිංහල · 中文 · العربية\n\n");
+        PlayerController controller;
+        QVERIFY(controller.writeTextToFile(fileUrl ? QUrl::fromLocalFile(path).toString() : path, content));
+        QFile output(path);
+        QVERIFY(output.open(QIODevice::ReadOnly));
+        QCOMPARE(output.readAll(), content.toUtf8());
+        QCOMPARE(QDir(directory.path()).entryList(QDir::Files | QDir::Hidden).size(), 1);
+    }
+    void textExportRejectsInvalidDestinations()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        PlayerController controller;
+        QVERIFY(!controller.writeTextToFile({}, "Subtitles"));
+        QVERIFY(!controller.writeTextToFile(directory.path(), "Subtitles"));
+        QVERIFY(!controller.writeTextToFile(directory.filePath("missing/export.srt"), "Subtitles"));
+        QVERIFY(QDir(directory.path()).entryList(QDir::Files | QDir::Hidden).isEmpty());
+    }
+    void textExportNeverFallsBackToTruncatingExistingFile()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto path = directory.filePath("existing.srt");
+        const QByteArray previous = "Previous subtitles";
+        {
+            QFile original(path);
+            QVERIFY(original.open(QIODevice::WriteOnly));
+            QCOMPARE(original.write(previous), previous.size());
+        }
+        const auto permissions = QFile::permissions(directory.path());
+        const auto restorePermissions = qScopeGuard([&] { QFile::setPermissions(directory.path(), permissions); });
+        QVERIFY(QFile::setPermissions(directory.path(), QFile::ReadOwner | QFile::ExeOwner));
+        QFile probe(directory.filePath("permission-probe"));
+        if (probe.open(QIODevice::WriteOnly)) {
+            probe.close();
+            probe.remove();
+            QSKIP("The current user can write to read-only directories");
+        }
+        PlayerController controller;
+        QVERIFY(!controller.writeTextToFile(path, "Replacement subtitles"));
+        QFile original(path);
+        QVERIFY(original.open(QIODevice::ReadOnly));
+        QCOMPARE(original.readAll(), previous);
+    }
+    void failedTextExportPreservesDestination_data()
+    {
+        QTest::addColumn<bool>("previous");
+        QTest::addColumn<int>("contentSize");
+        QTest::addColumn<int>("writeLimit");
+        QTest::newRow("rejected-write-new") << false << 64 << 0;
+        QTest::newRow("rejected-write-existing") << true << 64 << 0;
+        QTest::newRow("partial-write-new") << false << 256 * 1024 << 4096;
+        QTest::newRow("partial-write-existing") << true << 256 * 1024 << 4096;
+    }
+    void failedTextExportPreservesDestination()
+    {
+#ifdef Q_OS_UNIX
+        QFETCH(bool, previous);
+        QFETCH(int, contentSize);
+        QFETCH(int, writeLimit);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto path = directory.filePath("export.srt");
+        const QByteArray originalContent = "Previous subtitles";
+        if (previous) {
+            QFile original(path);
+            QVERIFY(original.open(QIODevice::WriteOnly));
+            QCOMPARE(original.write(originalContent), originalContent.size());
+        }
+        // A separate process limits writes without affecting the test runner.
+        // A zero limit rejects writes; 4096 bytes allows only a partial export.
+        QProcess child;
+        child.start(QCoreApplication::applicationFilePath(), {"--export-with-write-limit", path,
+                    QString::number(contentSize), QString::number(writeLimit)});
+        QVERIFY(child.waitForStarted(3000));
+        QVERIFY(child.waitForFinished(5000));
+        QCOMPARE(child.exitStatus(), QProcess::NormalExit);
+        QCOMPARE(child.exitCode(), 0); // The export must have reported failure.
+        QFile original(path);
+        if (previous) {
+            QVERIFY(original.open(QIODevice::ReadOnly));
+            QCOMPARE(original.readAll(), originalContent);
+        } else {
+            QVERIFY(!original.exists());
+        }
+        QCOMPARE(QDir(directory.path()).entryList(QDir::Files | QDir::Hidden).size(), previous ? 1 : 0);
+#else
+        QSKIP("File-size limits require Unix");
+#endif
+    }
+    void xspfParsing_data()
+    {
+        QTest::addColumn<QString>("xml");
+        QTest::addColumn<QString>("baseUrl");
+        QTest::addColumn<QString>("expectedPath");
+        QTest::addColumn<QString>("expectedTitle");
+        const auto document = [](const QString &track) {
+            return QStringLiteral("<playlist version=\"1\" xmlns=\"http://xspf.org/ns/0/\"><trackList><track>")
+                + track + QStringLiteral("</track></trackList></playlist>");
+        };
+        QTest::newRow("named-entities") << document("<location>file:///music/A&amp;B.wav</location>"
+            "<title>A &amp; B &lt;Live&gt; &quot;Mix&quot; &apos;OK&apos;</title>") << ""
+            << "/music/A&B.wav" << "A & B <Live> \"Mix\" 'OK'";
+        QTest::newRow("numeric-entities") << document("<location>file:///music/A&#38;B.wav</location>"
+            "<title>&#x1F3B5; &#128512;</title>") << "" << "/music/A&B.wav" << QStringLiteral("🎵 😀");
+        QTest::newRow("decode-xml-once") << document("<location>file:///music/A&amp;amp;B.wav</location>"
+            "<title>A&amp;amp;B</title>") << "" << "/music/A&amp;B.wav" << "A&amp;B";
+        QTest::newRow("preserve-uri-encoding") << document("<location>file:///music/A%26B%2526.wav</location>")
+            << "" << "/music/A&B%26.wav" << "A&B%26.wav";
+        QTest::newRow("cdata") << document("<location><![CDATA[file:///music/A&B.wav]]></location>"
+            "<title><![CDATA[A & B <Live>]]></title>") << "" << "/music/A&B.wav" << "A & B <Live>";
+        QTest::newRow("prefixed-namespace") << QStringLiteral("<x:playlist xmlns:x=\"http://xspf.org/ns/0/\">"
+            "<x:trackList><x:track id=\"1\"><x:location>file:///music/A&amp;B.wav</x:location>"
+            "<x:title>Prefixed</x:title></x:track></x:trackList></x:playlist>")
+            << "" << "/music/A&B.wav" << "Prefixed";
+        QTest::newRow("legacy-no-namespace") << QStringLiteral("<playlist><trackList><track>"
+            "<location>file:///music/A&amp;B.wav</location></track></trackList></playlist>")
+            << "" << "/music/A&B.wav" << "A&B.wav";
+        QTest::newRow("relative-location") << document("<location>../media/A&amp;B.wav</location>")
+            << "file:///lists/collection/Mix.xspf" << "/lists/media/A&B.wav" << "A&B.wav";
+        QTest::newRow("xml-base") << QStringLiteral("<playlist xmlns=\"http://xspf.org/ns/0/\" xml:base=\"file:///music/\">"
+            "<trackList xml:base=\"albums/\"><track xml:base=\"live/\"><location xml:base=\"../other/\">"
+            "A&amp;B.wav</location></track></trackList></playlist>")
+            << "" << "/music/albums/other/A&B.wav" << "A&B.wav";
+        QTest::newRow("unicode-fallback-title") << document(QStringLiteral("<location>file:///music/සිංහල%20%23100%25.wav</location>"))
+            << "" << QStringLiteral("/music/සිංහල #100%.wav") << QStringLiteral("සිංහල #100%.wav");
+    }
+    void xspfParsing()
+    {
+        QFETCH(QString, xml);
+        QFETCH(QString, baseUrl);
+        QFETCH(QString, expectedPath);
+        QFETCH(QString, expectedTitle);
+        PlayerController controller;
+        const auto parsed = controller.parseXspf(xml, baseUrl);
+        QVERIFY2(parsed.value("error").toString().isEmpty(), qPrintable(parsed.value("error").toString()));
+        const auto tracks = parsed.value("tracks").toList();
+        QCOMPARE(tracks.size(), 1);
+        const auto track = tracks.first().toMap();
+        QCOMPARE(QUrl(track.value("url").toString()).toLocalFile(), expectedPath);
+        QCOMPARE(track.value("title").toString(), expectedTitle);
+    }
+    void xspfRejectsMalformedDocuments_data()
+    {
+        QTest::addColumn<QString>("xml");
+        QTest::newRow("truncated") << "<playlist><trackList><track><location>file:///a.wav</location></track></trackList>";
+        QTest::newRow("bare-ampersand") << "<playlist><trackList><track><location>file:///A&B.wav</location></track></trackList></playlist>";
+        QTest::newRow("unknown-entity") << "<playlist><trackList><track><location>file:///A&unknown;B.wav</location></track></trackList></playlist>";
+        QTest::newRow("trailing-content") << "<playlist><trackList><track><location>file:///a.wav</location></track></trackList></playlist><extra/>";
+        QTest::newRow("wrong-root") << "<document><trackList><track><location>file:///a.wav</location></track></trackList></document>";
+        QTest::newRow("foreign-namespace") << "<playlist xmlns=\"urn:other\"><trackList><track><location>file:///a.wav</location></track></trackList></playlist>";
+    }
+    void xspfRejectsMalformedDocuments()
+    {
+        QFETCH(QString, xml);
+        PlayerController controller;
+        const auto parsed = controller.parseXspf(xml);
+        QVERIFY(!parsed.value("error").toString().isEmpty());
+        QVERIFY2(parsed.value("tracks").toList().isEmpty(), "A valid prefix must not publish a partial playlist");
+    }
+    void xspfPreservesQueueOrderAndIgnoresExtensions()
+    {
+        PlayerController controller;
+        const auto parsed = controller.parseXspf(QStringLiteral(
+            "<playlist xmlns=\"http://xspf.org/ns/0/\" xmlns:other=\"urn:other\">"
+            "<extension><track><location>file:///fake.wav</location></track></extension><trackList>"
+            "<other:track><other:location>file:///foreign.wav</other:location></other:track>"
+            "<track><title>No location</title></track><track><location>  </location></track>"
+            "<track id=\"1\"><location/><location>file:///repeat.wav</location><location>file:///alternative.wav</location><title>First</title></track>"
+            "<track><location>file:///repeat.wav</location><title>Second</title></track>"
+            "</trackList></playlist>"));
+        QVERIFY(parsed.value("error").toString().isEmpty());
+        const auto tracks = parsed.value("tracks").toList();
+        QCOMPARE(tracks.size(), 2);
+        QCOMPARE(tracks[0].toMap().value("url").toString(), QString("file:///repeat.wav"));
+        QCOMPARE(tracks[1].toMap().value("url").toString(), QString("file:///repeat.wav"));
+        QCOMPARE(tracks[0].toMap().value("title").toString(), QString("First"));
+        QCOMPARE(tracks[1].toMap().value("title").toString(), QString("Second"));
+    }
+    void subtitleFilenameMatching_data()
+    {
+        QTest::addColumn<QString>("mediaName");
+        QTest::addColumn<QString>("subtitleName");
+        QTest::addColumn<QString>("expectedLabel"); // Empty means no match.
+        QTest::newRow("exact-srt") << "Episode1.mp4" << "Episode1.srt" << "Default";
+        QTest::newRow("exact-vtt") << "Episode1.mp4" << "Episode1.vtt" << "Default";
+        QTest::newRow("language-srt") << "Episode1.mp4" << "Episode1.en.srt" << "en";
+        QTest::newRow("language-vtt") << "Episode1.mp4" << "Episode1.fr.vtt" << "fr";
+        QTest::newRow("language-and-kind") << "Episode1.mp4" << "Episode1.en.forced.srt" << "en.forced";
+        QTest::newRow("empty-qualifier") << "Episode1.mp4" << "Episode1..srt" << "";
+        QTest::newRow("next-episode") << "Episode1.mp4" << "Episode10.srt" << "";
+        QTest::newRow("next-episode-language") << "Episode1.mp4" << "Episode11.en.vtt" << "";
+        QTest::newRow("longer-title") << "Episode1.mp4" << "Episode1Extra.srt" << "";
+        QTest::newRow("space-continuation") << "Episode1.mp4" << "Episode1 0.srt" << "";
+        QTest::newRow("dotted-title") << "Show.S01E01.mkv" << "Show.S01E01.en.srt" << "en";
+        QTest::newRow("dotted-next-episode") << "Show.S01E01.mkv" << "Show.S01E010.srt" << "";
+        QTest::newRow("bracketed-title") << "Show [2026].mp4" << "Show [2026].en.srt" << "en";
+        QTest::newRow("literal-wildcard") << "Show*.mp4" << "Show*.en.vtt" << "en";
+        QTest::newRow("wildcard-decoy") << "Show*.mp4" << "ShowExtra.en.srt" << "";
+        QTest::newRow("case-insensitive") << "Episode1.mp4" << "EPISODE1.EN.SRT" << "EN";
+        QTest::newRow("encoded-name") << QStringLiteral("Episode #1% සිංහල.mp4")
+            << QStringLiteral("Episode #1% සිංහල.en.vtt") << "en";
+        QTest::newRow("unsupported-format") << "Episode1.mp4" << "Episode1.ass" << "";
+    }
+    void subtitleFilenameMatching()
+    {
+        QFETCH(QString, mediaName);
+        QFETCH(QString, subtitleName);
+        QFETCH(QString, expectedLabel);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto path = directory.filePath(subtitleName);
+        QFile subtitle(path);
+        QVERIFY(subtitle.open(QIODevice::WriteOnly));
+        subtitle.close();
+        PlayerController controller;
+        const auto matches = controller.findSubtitleFiles(QUrl::fromLocalFile(directory.filePath(mediaName)).toString());
+        QCOMPARE(matches.size(), expectedLabel.isEmpty() ? 0 : 1);
+        if (!expectedLabel.isEmpty()) {
+            const auto match = matches.first().toMap();
+            QCOMPARE(match.value("url").toString(), QUrl::fromLocalFile(path).toString());
+            QCOMPARE(match.value("label").toString(), expectedLabel);
+        }
+    }
+    void subtitleMatchesExcludeOtherEpisodesInTheSameFolder()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        for (const auto *name : {"Episode1.srt", "Episode1.en.forced.srt", "Episode1.fr.vtt",
+                                 "Episode10.srt", "Episode11.en.vtt", "Episode1Extra.srt"}) {
+            QFile subtitle(directory.filePath(name));
+            QVERIFY(subtitle.open(QIODevice::WriteOnly));
+        }
+        PlayerController controller;
+        const auto matches = controller.findSubtitleFiles(QUrl::fromLocalFile(directory.filePath("Episode1.mp4")).toString());
+        QCOMPARE(matches.size(), 3);
+        QMap<QString, QString> actual;
+        for (const auto &match : matches) {
+            const auto row = match.toMap();
+            actual.insert(controller.getCleanFileName(row.value("url").toString()), row.value("label").toString());
+        }
+        const QMap<QString, QString> expected = {{"Episode1.srt", "Default"},
+            {"Episode1.en.forced.srt", "en.forced"}, {"Episode1.fr.vtt", "fr"}};
+        QCOMPARE(actual, expected);
     }
     void thumbnailRequiresAFrameFromTheCurrentTrack()
     {
@@ -326,5 +597,23 @@ private slots:
         QVERIFY(controller.getFilesInFolder("https://example.invalid/movie.mp4").isEmpty());
     }
 };
-QTEST_GUILESS_MAIN(PlayerControllerTest)
+int main(int argc, char **argv)
+{
+    QCoreApplication application(argc, argv);
+#ifdef Q_OS_UNIX
+    const auto arguments = application.arguments();
+    if (arguments.value(1) == "--export-with-write-limit") {
+        rlimit limit;
+        if (getrlimit(RLIMIT_FSIZE, &limit) != 0)
+            return 2;
+        limit.rlim_cur = arguments.value(4).toULongLong();
+        if (setrlimit(RLIMIT_FSIZE, &limit) != 0 || std::signal(SIGXFSZ, SIG_IGN) == SIG_ERR)
+            return 2;
+        PlayerController controller;
+        return controller.writeTextToFile(arguments.value(2), QString(arguments.value(3).toInt(), QLatin1Char('x'))) ? 1 : 0;
+    }
+#endif
+    PlayerControllerTest test;
+    return QTest::qExec(&test, argc, argv);
+}
 #include "tst_playercontroller.moc"

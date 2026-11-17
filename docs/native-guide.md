@@ -69,8 +69,9 @@ src/main.cpp
 - **`videoSink`** — hooks into `VideoOutput` to receive frames for color extraction
 - **`handleVideoFrame()`** — samples pixel colors at 4fps to emit `backgroundColorChanged(hexColor)`
 - **`generateTimelinePreviews(url, durationSec)`** — spawns a background `ffmpeg` process with `-hwaccel auto -discard nokey -skip_frame nokey` to generate a 10×10 sprite sheet at `~/.cache/mapl-player/previews/`
-- **`findSubtitleFiles(mediaUrl)`** — scans the media file's directory for all `<basename>*.srt` and `<basename>*.vtt` files, returning `{ label, url }` maps
+- **`findSubtitleFiles(mediaUrl)`** — scans the media file's directory for `.srt`/`.vtt` files with the same literal base filename, optionally followed by dot-separated tags, returning `{ label, url }` maps
 - **`getFilesInFolder(fileUrl)`** — enumerates all media files in a folder for folder-play mode
+- **`parseXspf(xml, playlistUrl)`** — parses XSPF with Qt's XML reader, resolves relative locations and returns tracks or a parsing error
 - **`captureThumbnail()`** / **`getThumbnail()`** — frame-snapshot cover art via `QSettings`
 - **`saveVolume()`** / **`loadVolume()`** / **`saveLoop()`** / **`loadLoop()`** — persistent settings
 
@@ -169,7 +170,7 @@ The Qt6 Multimedia FFmpeg backend decodes all formats that system FFmpeg support
 ### Automatic Detection
 
 When a media file is loaded, MAPL automatically:
-1. Scans the media file's directory for external subtitle files matching `<filename>*.srt` and `<filename>*.vtt`
+1. Scans the media file's directory for external `.srt`/`.vtt` files with the same base filename, optionally followed by dot-separated language/kind tags
 2. Queries Qt MediaPlayer for any embedded subtitle tracks inside the container (MKV, MP4, etc.)
 
 **If exactly one external file is found** and no embedded tracks exist, it is loaded silently.
@@ -205,13 +206,15 @@ Place subtitle files in the same folder as the video, using the same base filena
   movie.Japanese.vtt → label: "Japanese"
 ```
 
+Matching ignores case and treats filename characters literally. The base name must match completely before any dot-separated tags: `Episode1.en.forced.srt` matches `Episode1.mp4`, while `Episode10.srt` does not.
+
 ### Manual Subtitle Load
 
 Use the subtitle button in the controls panel, or the file picker (`Subtitles & Lyrics` filter accepts `.srt`, `.vtt`, `.txt`).
 
 ### Subtitle Shift
 
-If subtitle timing is off, use the shift controls in the Lyrics & Subtitles view (±0.5s / ±1s / custom). Export the corrected file as `.srt`, `.vtt`, or `.txt`.
+If subtitle timing is off, use the shift controls in the Lyrics & Subtitles view (±0.5s / ±1s / custom). Captions and transcript highlights refresh immediately while paused, without moving the playback position or resuming. Export the corrected file as `.srt`, `.vtt`, or `.txt`.
 
 ---
 
@@ -291,6 +294,8 @@ Enable **Translate to English** in the subtitle generator panel to transcribe an
 | `P` | Previous track |
 | `Escape` | Exit fullscreen |
 
+Exiting fullscreen restores the preceding windowed or maximized state and retains the normal window size. Escape closes an open menu or dialog before leaving fullscreen.
+
 ---
 
 ## Configuration & Persistence
@@ -336,6 +341,8 @@ Whisper model files are cached at:
   </trackList>
 </playlist>
 ```
+
+Paths and titles use XML escaping: write a literal `&` as `&amp;`, for example `<location>file:///home/user/Music/A&amp;B.flac</location>`. MAPL decodes XML entities once, preserves URI percent encoding, and supports CDATA and namespace prefixes. Relative locations resolve against the playlist file URL and any inherited `xml:base` attributes. Malformed XML leaves the current queue intact and displays an error.
 
 ### SubRip Subtitles (`.srt`)
 

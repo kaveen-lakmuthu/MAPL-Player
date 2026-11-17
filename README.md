@@ -2,17 +2,17 @@
 
 **MAPL Player** is a native desktop media player for Linux, built with **C++ and Qt6/QML**. It plays audio and video, generates subtitles offline using a local AI model, and provides compact video controls, a dedicated ambient Audio view, expandable lyrics and playlist panels, and timeline previews. Format support depends on the installed Qt Multimedia backend and codecs.
 
-> **Version 2.3.7-alpha. Alpha testing is underway.** Use `scripts/install.sh` to install for your user on Linux.
+> **Version 2.3.13-alpha. Alpha testing is underway.** Use `scripts/install.sh` to install for your user on Linux.
 
 The desktop UI redesign starts the **2.x** release series. Fixes use patch releases such as `2.0.1-alpha`; feature updates use minor releases such as `2.1.0-alpha`. Releases retain the `-alpha` suffix while alpha testing continues. The build derives the application version from `CMakeLists.txt` and exposes it in About and through `mapl-player --version`.
 
-MAPL remembers the normal window size, maximized state, Audio/Video presentation, and the open or expanded Lyrics/Playlist panel between sessions. Opening a media file still selects its appropriate presentation. Fullscreen is temporary; window placement stays with the window manager.
+MAPL remembers the normal window size, maximized state, Audio/Video presentation, and the open or expanded Lyrics/Playlist panel between sessions. Opening a media file still selects its appropriate presentation. Leaving fullscreen through Escape, F, double-click or the fullscreen button restores the previous windowed or maximized state and preserves the normal window size; window placement stays with the window manager.
 
 Menus and dropdowns use inset rows with room around text, checkmarks and submenu arrows. Buttons, panel headers and settings dialogs share more generous padding and group spacing while keeping the video area compact; the Thumbnail toolbar action uses its icon at narrow window widths.
 
 In fullscreen Video, move the pointer to the bottom edge to reveal a compact, translucent playback strip. It hides after 1.2 seconds of inactivity, or promptly when you move back into the picture. Hovering the strip, dragging its sliders or using a popup keeps it available. Moving elsewhere over the video only wakes the cursor; external captions stay above the strip without shifting when it appears.
 
-Click the video once to pause or resume; double-click to enter or leave fullscreen without changing playback. The video-surface single click waits for your system's double-click interval so the gestures stay separate. The play button and Space shortcut respond immediately.
+Click the video once to pause or resume; double-click to enter or leave fullscreen without changing playback. The video-surface single click waits for your system's double-click interval so the gestures stay separate. The play button and Space shortcut respond immediately. Space toggles playback once per press, ignoring keyboard auto-repeat, and preserves the current position when pausing or resuming. Shortcuts stay inactive while typing or using a menu or dialog.
 
 Brief notifications such as seeking, volume and track changes appear in the top-right of the playback area, clear of bottom subtitles. Longer messages wrap in a compact overlay; an open side panel keeps its header buttons unobstructed.
 
@@ -20,7 +20,15 @@ Subtitles sit higher by default, with a bottom gap of 12% of the playback area's
 
 Subtitle font size, text colour and background opacity are remembered too. Entering or leaving fullscreen keeps the chosen font size, and reopening MAPL restores the same appearance settings.
 
+Changing subtitle timing or loading, replacing or clearing subtitles refreshes captions and transcript highlights immediately, including while paused, without seeking or resuming playback.
+
+Subtitle exports use UTF-8 and replace the destination only after the complete file is saved successfully. Failed writes report an export error and preserve any existing destination file.
+
+Automatic subtitle detection requires the same base filename, optionally followed by dot-separated tags: `Episode1.srt`, `Episode1.en.vtt` and `Episode1.en.forced.srt` match `Episode1.mp4`; `Episode10.srt` does not. Matching ignores case and treats brackets and other filename characters literally.
+
 Click any Playlist row to select and play that item, including in folder-loaded queues and filtered results. Filtering preserves queue positions, and selecting an item keeps the queue for automatic advancement. Entries remain individually selectable when the same file appears more than once. Files with a saved position can still offer Resume or Start over.
+
+XSPF imports decode XML escapes in paths and titles, including filenames containing `&`, and support CDATA and namespace-prefixed elements. Relative media locations resolve against the playlist file, including `xml:base` overrides. Malformed playlists report an error and keep the current queue.
 
 During model downloads, verification, or transcription, a compact task button beside the timeline opens progress and individual cancellation controls. It is available in every view, including the fullscreen playback strip. Dismissing the task panel leaves jobs running; detailed model management remains in Options → Subtitles → Whisper models.
 

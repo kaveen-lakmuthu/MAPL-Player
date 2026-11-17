@@ -71,6 +71,69 @@ TestCase {
         compare(appWindow.playlist.length, 3, "Selecting a row must keep the folder queue");
         compare(appWindow.panelView, "playlist");
     }
+    function test_xspfEscapedPathAndTitlePlay() {
+        appWindow.playbackHistory.clearPosition(TestPaths.escapedMediaUrl);
+        var location = TestPaths.escapedMediaUrl.replace(/&/g, "&amp;");
+        appWindow.parseXspf('<playlist version="1" xmlns="http://xspf.org/ns/0/"><trackList><track>'
+            + '<location>' + location + '</location><title>Rock &amp; Roll &#x1F3B5;</title>'
+            + '</track></trackList></playlist>');
+        compare(appWindow.playlist.length, 1);
+        compare(appWindow.playlist[0].url.toString(), TestPaths.escapedMediaUrl);
+        compare(appWindow.playlist[0].title, "Rock & Roll 🎵");
+        appWindow.playCurrentTrack();
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        tryVerify(function () { return appWindow.mediaPlayer.duration > 0; });
+        compare(appWindow.mediaPlayer.source.toString(), TestPaths.escapedMediaUrl);
+    }
+    function test_xspfInvalidXmlKeepsCurrentQueue_data() {
+        return [{tag: "direct", drop: false}, {tag: "drop", drop: true}];
+    }
+    function test_xspfInvalidXmlKeepsCurrentQueue(data) {
+        appWindow.loadMediaFile(TestPaths.audioUrl);
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        var revision = appWindow.mediaRevision;
+        var xml = '<playlist><trackList><track><location>' + TestPaths.audioUrl
+            + '</location></track></trackList>'; // Missing closing playlist tag.
+        if (data.drop) {
+            var url = TestPaths.audioUrl.substring(0, TestPaths.audioUrl.lastIndexOf("/") + 1) + "Malformed.xspf";
+            verify(appWindow.playerController.writeTextToFile(url, xml));
+            appWindow.handleDroppedFile(url);
+            tryVerify(function () { return appWindow.messageText.indexOf("Error:") >= 0; });
+        } else appWindow.parseXspf(xml);
+        compare(appWindow.mediaRevision, revision, "Malformed XML must not replace or reload the queue");
+        compare(appWindow.mediaPlayer.source.toString(), TestPaths.audioUrl);
+        compare(appWindow.mediaPlayer.playbackState, MediaPlayer.PlayingState);
+        verify(appWindow.messageText.indexOf("Error:") >= 0);
+    }
+    function test_xspfFileLoading_data() {
+        return [
+            {tag: "drop-absolute", drop: true, relative: false},
+            {tag: "drop-relative", drop: true, relative: true},
+            {tag: "dialog-absolute", drop: false, relative: false},
+            {tag: "dialog-relative", drop: false, relative: true}
+        ];
+    }
+    function test_xspfFileLoading(data) {
+        appWindow.playbackHistory.clearPosition(TestPaths.escapedMediaUrl);
+        var folder = TestPaths.escapedMediaUrl.substring(0, TestPaths.escapedMediaUrl.lastIndexOf("/") + 1);
+        var url = folder + "Import & Mix.xspf";
+        var location = data.relative ? TestPaths.escapedMediaUrl.substring(folder.length) : TestPaths.escapedMediaUrl;
+        var xml = '<playlist version="1" xmlns="http://xspf.org/ns/0/"><trackList><track><location>'
+            + location.replace(/&/g, "&amp;") + '</location><title>Imported &amp; decoded</title></track></trackList></playlist>';
+        verify(appWindow.playerController.writeTextToFile(url, xml));
+        if (data.drop) appWindow.handleDroppedFile(url);
+        else {
+            var dialog = findChild(appWindow, "playlistFileDialog");
+            dialog.selectedFile = url;
+            dialog.accepted();
+        }
+        tryCompare(appWindow, "currentTrackIndex", 0);
+        compare(appWindow.playlist[0].url.toString(), TestPaths.escapedMediaUrl);
+        compare(appWindow.playlist[0].title, "Imported & decoded");
+        appWindow.playCurrentTrack();
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        compare(appWindow.mediaPlayer.source.toString(), TestPaths.escapedMediaUrl);
+    }
     function test_duplicatePlaylistUrlsSelectTheClickedOccurrence() {
         appWindow.playlist = [
             {url: TestPaths.audioUrl, title: "First occurrence"},
@@ -154,6 +217,76 @@ TestCase {
         appWindow = createTemporaryObject(component, testCase, {desktopControlsEnabled: false});
         verify(appWindow !== null);
         tryCompare(appWindow, "visibility", data.maximize ? Window.Maximized : Window.Windowed);
+        compare(appWindow.desktopLayout.normalWidth, 720);
+        compare(appWindow.desktopLayout.normalHeight, 480);
+        appWindow.layoutPersistenceEnabled = false;
+    }
+    function test_fullscreenRestoresPreviousWindowState_data() {
+        var cases = [];
+        for (var maximized of [false, true]) {
+            for (var route of ["toggle", "escape", "keyboard", "double-click", "external"]) {
+                cases.push({tag: (maximized ? "maximized-" : "windowed-") + route,
+                    maximized: maximized, route: route});
+            }
+        }
+        return cases;
+    }
+    function test_fullscreenRestoresPreviousWindowState(data) {
+        appWindow.showMediaView("video");
+        appWindow.showNormal();
+        appWindow.width = 720;
+        appWindow.height = 480;
+        if (data.maximized) appWindow.showMaximized();
+        var expected = data.maximized ? Window.Maximized : Window.Windowed;
+        tryCompare(appWindow, "visibility", expected);
+        appWindow.requestActivate();
+        tryCompare(appWindow, "active", true);
+        appWindow.contentItem.forceActiveFocus();
+        var video = findChild(appWindow, "videoPointerArea");
+        for (var cycle = 0; cycle < 2; ++cycle) {
+            if (data.route === "keyboard") keyClick(Qt.Key_F);
+            else if (data.route === "double-click") {
+                waitForRendering(video);
+                mouseDoubleClickSequence(video, video.width / 2, video.height / 2);
+            } else if (data.route === "external") appWindow.showFullScreen();
+            else appWindow.toggleFullscreen();
+            tryCompare(appWindow, "visibility", Window.FullScreen);
+            if (data.route === "escape" || data.route === "external") keyClick(Qt.Key_Escape);
+            else if (data.route === "keyboard") keyClick(Qt.Key_F);
+            else if (data.route === "double-click") {
+                waitForRendering(video);
+                mouseDoubleClickSequence(video, video.width / 2, video.height / 2);
+            } else appWindow.toggleFullscreen();
+            tryCompare(appWindow, "visibility", expected);
+        }
+        appWindow.showNormal();
+        tryCompare(appWindow, "width", 720);
+        tryCompare(appWindow, "height", 480);
+    }
+    function test_fullscreenRestorationSurvivesReopening_data() {
+        return [{tag: "toggle", escape: false}, {tag: "escape", escape: true}];
+    }
+    function test_fullscreenRestorationSurvivesReopening(data) {
+        appWindow.layoutPersistenceEnabled = true;
+        appWindow.desktopLayout.restore();
+        appWindow.showNormal();
+        appWindow.width = 720;
+        appWindow.height = 480;
+        wait(150);
+        appWindow.showMaximized();
+        tryCompare(appWindow, "visibility", Window.Maximized);
+        appWindow.requestActivate();
+        tryCompare(appWindow, "active", true);
+        appWindow.toggleFullscreen();
+        tryCompare(appWindow, "visibility", Window.FullScreen);
+        if (data.escape) keyClick(Qt.Key_Escape);
+        else appWindow.toggleFullscreen();
+        tryCompare(appWindow, "visibility", Window.Maximized);
+        appWindow.close();
+        var component = Qt.createComponent(TestPaths.mainQml);
+        appWindow = createTemporaryObject(component, testCase, {desktopControlsEnabled: false});
+        verify(appWindow !== null);
+        tryCompare(appWindow, "visibility", Window.Maximized);
         compare(appWindow.desktopLayout.normalWidth, 720);
         compare(appWindow.desktopLayout.normalHeight, 480);
         appWindow.layoutPersistenceEnabled = false;
@@ -567,20 +700,28 @@ TestCase {
         compare(spy.count, 2);
         verify(!appWindow.modalDialogOpen, "Space must not activate the focused toolbar button");
     }
-    function test_heldSpaceTogglesOnlyOnce() {
+    function test_heldSpaceTogglesOnlyOnce_data() {
+        return [{tag: "pause", paused: false}, {tag: "resume", paused: true}];
+    }
+    function test_heldSpaceTogglesOnlyOnce(data) {
         appWindow.loadMediaFile(TestPaths.audioUrl);
         tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        if (data.paused) appWindow.mediaPlayer.pause();
         appWindow.requestActivate();
         tryCompare(appWindow, "active", true);
         appWindow.contentItem.forceActiveFocus();
         var spy = createTemporaryObject(playbackStateSpy, testCase, {target: appWindow.mediaPlayer});
+        var expected = data.paused ? MediaPlayer.PlayingState : MediaPlayer.PausedState;
         keyPress(Qt.Key_Space);
-        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PausedState);
+        tryCompare(appWindow.mediaPlayer, "playbackState", expected);
         for (var i = 0; i < 5; ++i)
-            TestInput.repeatKey(Qt.Key_Space);
+            TestInput.repeatSpace();
         keyRelease(Qt.Key_Space);
-        compare(appWindow.mediaPlayer.playbackState, MediaPlayer.PausedState);
+        compare(appWindow.mediaPlayer.playbackState, expected);
         compare(spy.count, 1, "Holding Space must not toggle playback repeatedly");
+        keyClick(Qt.Key_Space);
+        tryCompare(appWindow.mediaPlayer, "playbackState", data.paused ? MediaPlayer.PausedState : MediaPlayer.PlayingState);
+        compare(spy.count, 2, "A new press after release must toggle again");
     }
     function test_volumeArrowsAfterFocusingControls_data() {
         return [
@@ -817,6 +958,82 @@ TestCase {
         mouseRelease(video, video.width / 2, video.height / 2);
         tryCompare(slider, "pressed", false);
         tryCompare(controls, "visible", false, 600);
+    }
+    function preparePausedCaptionTest() {
+        appWindow.loadMediaFile(TestPaths.audioUrl);
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        tryVerify(function () { return appWindow.mediaPlayer.seekable; });
+        appWindow.mediaPlayer.pause();
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PausedState);
+        appWindow.showMediaView("video");
+        appWindow.togglePanel("lyrics");
+        appWindow.subtitleChunks = [
+            {start: 10, end: 20, text: "First caption"},
+            {start: 25, end: 35, text: "Second caption"}
+        ];
+        appWindow.seekTo(15000);
+        tryCompare(appWindow, "activeSubtitleText", "First caption");
+        compare(appWindow.currentActiveSubtitleIndex, 0);
+        tryCompare(appWindow.transcriptListView, "currentIndex", 0);
+        return createTemporaryObject(playbackStateSpy, testCase, {target: appWindow.mediaPlayer});
+    }
+    function test_subtitleTimingRefreshesWhilePaused_data() {
+        return [
+            {tag: "later-windowed", delta: 20, text: "", index: -1, fullscreen: false},
+            {tag: "earlier-windowed", delta: -15, text: "Second caption", index: 1, fullscreen: false},
+            {tag: "later-fullscreen", delta: 20, text: "", index: -1, fullscreen: true},
+            {tag: "earlier-fullscreen", delta: -15, text: "Second caption", index: 1, fullscreen: true}
+        ];
+    }
+    function test_subtitleTimingRefreshesWhilePaused(data) {
+        var spy = preparePausedCaptionTest();
+        if (data.fullscreen) appWindow.toggleFullscreen();
+        var position = appWindow.mediaPlayer.position;
+        appWindow.shiftSubtitles(data.delta);
+        tryCompare(appWindow, "activeSubtitleText", data.text);
+        compare(findChild(appWindow, "videoSubtitleText").text, data.text);
+        compare(appWindow.currentActiveSubtitleIndex, data.index);
+        tryCompare(appWindow.transcriptListView, "currentIndex", data.index);
+        appWindow.shiftSubtitles(-data.delta);
+        tryCompare(appWindow, "activeSubtitleText", "First caption");
+        compare(appWindow.currentActiveSubtitleIndex, 0);
+        tryCompare(appWindow.transcriptListView, "currentIndex", 0);
+        compare(appWindow.mediaPlayer.position, position, "Timing changes must not seek playback");
+        compare(appWindow.mediaPlayer.playbackState, MediaPlayer.PausedState);
+        compare(spy.count, 0, "Timing changes must not briefly resume playback");
+    }
+    function test_replacingAndClearingSubtitlesRefreshesWhilePaused() {
+        var spy = preparePausedCaptionTest();
+        var position = appWindow.mediaPlayer.position;
+        appWindow.subtitleChunks = [{start: 10, end: 20, text: "Replacement caption"}];
+        tryCompare(appWindow, "activeSubtitleText", "Replacement caption");
+        compare(appWindow.currentActiveSubtitleIndex, 0);
+        appWindow.subtitleChunks = [
+            {start: 0, end: 60, text: "Long title cue"},
+            {start: 10, end: 20, text: "Replacement caption"},
+            {start: 10, end: 20, text: "Replacement caption"}
+        ];
+        tryCompare(appWindow, "activeSubtitleText", "Long title cue\nReplacement caption");
+        compare(appWindow.currentActiveSubtitleIndex, 1, "Keep the short dialogue cue highlighted and suppress duplicate text");
+        appWindow.subtitleChunks = [];
+        tryCompare(appWindow, "activeSubtitleText", "");
+        compare(appWindow.currentActiveSubtitleIndex, -1);
+        tryCompare(appWindow.transcriptListView, "currentIndex", -1);
+        verify(!findChild(appWindow, "videoSubtitleOverlay").visible);
+        compare(appWindow.mediaPlayer.position, position);
+        compare(spy.count, 0);
+    }
+    function test_loadingSubtitleFileRefreshesWhilePaused() {
+        var spy = preparePausedCaptionTest();
+        var position = appWindow.mediaPlayer.position;
+        var url = TestPaths.audioUrl.substring(0, TestPaths.audioUrl.lastIndexOf("/") + 1) + "paused-captions.srt";
+        verify(appWindow.playerController.writeTextToFile(url, "1\n00:00:10,000 --> 00:00:20,000\nLoaded caption\n"));
+        appWindow.loadSubtitleFile(url);
+        tryCompare(appWindow, "activeSubtitleText", "Loaded caption");
+        compare(findChild(appWindow, "videoSubtitleText").text, "Loaded caption");
+        compare(appWindow.currentActiveSubtitleIndex, 0);
+        compare(appWindow.mediaPlayer.position, position);
+        compare(spy.count, 0);
     }
     function test_subtitleAppearanceSurvivesFullscreenAndReopening() {
         appWindow.showMediaView("video");

@@ -265,6 +265,7 @@ ApplicationWindow {
     property bool playFolderToggle: controller.loadPlayFolderToggle()
     property string currentLyrics: ""
     property var subtitleChunks: []
+    onSubtitleChunksChanged: updateActiveSubtitles()
     property string activeSubtitleText: ""
     property int subtitleFontSize: 18
     onSubtitleFontSizeChanged: subtitleFontSize = Math.max(12, Math.min(36, subtitleFontSize))
@@ -352,6 +353,7 @@ ApplicationWindow {
     property string currentTimelinePreviewSheet: ""
     property bool controlsVisible: true
     property bool fullscreenCursorVisible: true
+    property int fullscreenRestoreVisibility: Window.Windowed
     readonly property bool fullscreenVideo: visibility === Window.FullScreen && mediaView === "video" && !panelExpanded
     readonly property bool fullscreenControlsCanHide: !playerLayout.controlsHovered && !playerLayout.controlsInteracting && !modalDialogOpen
     onFullscreenControlsCanHideChanged: {
@@ -386,6 +388,10 @@ ApplicationWindow {
     }
 
     onVisibilityChanged: {
+        // Track ordinary window states even when fullscreen is requested by
+        // the window manager. Minimize/hide must not replace the restore state.
+        if (window.visibility === Window.Windowed || window.visibility === Window.Maximized)
+            fullscreenRestoreVisibility = window.visibility;
         if (window.visibility !== Window.FullScreen) {
             controlsVisible = true;
         } else {
@@ -399,10 +405,15 @@ ApplicationWindow {
 
     function toggleFullscreen() {
         if (window.visibility === Window.FullScreen) {
-            window.visibility = Window.Windowed;
+            leaveFullscreen();
         } else {
             window.visibility = Window.FullScreen;
         }
+    }
+
+    function leaveFullscreen() {
+        if (window.visibility === Window.FullScreen)
+            window.visibility = fullscreenRestoreVisibility;
     }
 
     Timer {
@@ -433,9 +444,7 @@ ApplicationWindow {
     Shortcut {
         sequence: "Esc"
         enabled: window.visibility === Window.FullScreen && !window.modalDialogOpen
-        onActivated: {
-            window.visibility = Window.Windowed;
-        }
+        onActivated: leaveFullscreen()
     }
 
     // --- Mute & Notification Properties & Helpers ---
@@ -485,6 +494,8 @@ ApplicationWindow {
     // --- Keyboard Shortcuts ---
     Shortcut {
         sequence: "Space"
+        // A held key must not immediately resume after pausing.
+        autoRepeat: false
         enabled: !window.modalDialogOpen && !window.textInputFocused
         onActivated: togglePlayPause()
     }
@@ -642,66 +653,7 @@ ApplicationWindow {
                 seekSlider.value = (player.position / player.duration) * 100;
             }
 
-            // Sync subtitles overlay & list view highlight
-            if (subtitleChunks.length > 0) {
-                var posSec = player.position / 1000.0;
-                var activeIdx = -1;
-                var activeChunks = [];
-                for (var i = 0; i < subtitleChunks.length; i++) {
-                    var chunk = subtitleChunks[i];
-                    if (posSec >= chunk.start && posSec <= chunk.end) {
-                        var duplicate = false;
-                        for (var c = 0; c < activeChunks.length; c++) {
-                            if (activeChunks[c].text === chunk.text) {
-                                duplicate = true;
-                                break;
-                            }
-                        }
-                        if (!duplicate) {
-                            activeChunks.push({
-                                index: i,
-                                start: chunk.start,
-                                end: chunk.end,
-                                text: chunk.text
-                            });
-                        }
-                    }
-                }
-
-                if (activeChunks.length > 0) {
-                    // Sort by duration descending (longest duration first, i.e., title cards/lyrics on top, dialogue on bottom)
-                    activeChunks.sort(function (a, b) {
-                        var durA = a.end - a.start;
-                        var durB = b.end - b.start;
-                        return durB - durA;
-                    });
-
-                    var joinedText = "";
-                    for (var k = 0; k < activeChunks.length; k++) {
-                        if (k > 0)
-                            joinedText += "\n";
-                        joinedText += activeChunks[k].text;
-                    }
-
-                    activeSubtitleText = joinedText;
-                    activeIdx = activeChunks[activeChunks.length - 1].index;
-                } else {
-                    activeSubtitleText = "";
-                }
-
-                if (activeIdx !== -1) {
-                    currentActiveSubtitleIndex = activeIdx;
-                    // Only auto-scroll the list when not searching, so the user can browse freely
-                    if (transcriptListView.visible && transcriptSearchQuery.trim() === "") {
-                        if (transcriptListView.currentIndex !== activeIdx) {
-                            transcriptListView.currentIndex = activeIdx;
-                            transcriptListView.positionViewAtIndex(activeIdx, ListView.Center);
-                        }
-                    }
-                } else {
-                    currentActiveSubtitleIndex = -1;
-                }
-            }
+            updateActiveSubtitles();
         }
 
         onPlaybackStateChanged: {
@@ -727,9 +679,11 @@ ApplicationWindow {
             var request = new XMLHttpRequest();
             request.open("GET", urlStr, true);
             request.onreadystatechange = function () {
-                if (request.readyState === XMLHttpRequest.DONE && (request.status === 200 || request.status === 0)) {
-                    parseXspf(request.responseText);
-                    showMessage("Playlist loaded.");
+                if (request.readyState === XMLHttpRequest.DONE) {
+                    if (request.status === 200 || (request.status === 0 && request.responseText !== ""))
+                        parseXspf(request.responseText, urlStr);
+                    else
+                        showMessage("Error: Could not read XSPF playlist.");
                 }
             };
             request.send();
@@ -825,6 +779,54 @@ ApplicationWindow {
 
     function parseSRT(text) {
         return SubtitleUtils.parseSRT(text);
+    }
+
+    function updateActiveSubtitles() {
+        // The initial subtitle property can change before these objects exist.
+        if (!player || !playerLayout)
+            return;
+        var posSec = player.position / 1000.0;
+        var activeChunks = [];
+        for (var i = 0; i < subtitleChunks.length; i++) {
+            var chunk = subtitleChunks[i];
+            if (posSec >= chunk.start && posSec <= chunk.end) {
+                var duplicate = false;
+                for (var c = 0; c < activeChunks.length; c++) {
+                    if (activeChunks[c].text === chunk.text) {
+                        duplicate = true;
+                        break;
+                    }
+                }
+                if (!duplicate) {
+                    activeChunks.push({
+                        index: i,
+                        start: chunk.start,
+                        end: chunk.end,
+                        text: chunk.text
+                    });
+                }
+            }
+        }
+        // Keep long title/lyric cues above shorter dialogue cues.
+        activeChunks.sort(function (a, b) {
+            return (b.end - b.start) - (a.end - a.start);
+        });
+        var joinedText = "";
+        for (var k = 0; k < activeChunks.length; k++) {
+            if (k > 0)
+                joinedText += "\n";
+            joinedText += activeChunks[k].text;
+        }
+        var activeIdx = activeChunks.length > 0 ? activeChunks[activeChunks.length - 1].index : -1;
+        activeSubtitleText = joinedText;
+        currentActiveSubtitleIndex = activeIdx;
+        // Keep highlights current when cues change, without interrupting search.
+        var list = transcriptListView;
+        if (list && list.visible && transcriptSearchQuery.trim() === "" && list.currentIndex !== activeIdx) {
+            list.currentIndex = activeIdx;
+            if (activeIdx >= 0)
+                list.positionViewAtIndex(activeIdx, ListView.Center);
+        }
     }
 
     function getChapterAtTime(seconds) {
@@ -934,26 +936,13 @@ ApplicationWindow {
         ambientSourceColor = "#526a85";
     }
 
-    function parseXspf(xmlString) {
-        var tracks = [];
-        var trackRegex = /<track>([\s\S]*?)<\/track>/g;
-        var locationRegex = /<location>([\s\S]*?)<\/location>/;
-        var titleRegex = /<title>([\s\S]*?)<\/title>/;
-        var match;
-        while ((match = trackRegex.exec(xmlString)) !== null) {
-            var trackXml = match[1];
-            var locMatch = locationRegex.exec(trackXml);
-            var titleMatch = titleRegex.exec(trackXml);
-            if (locMatch) {
-                var location = locMatch[1].trim();
-                var title = titleMatch ? titleMatch[1].trim() : location.substring(location.lastIndexOf('/') + 1);
-                tracks.push({
-                    url: location,
-                    title: title
-                });
-            }
+    function parseXspf(xmlString, playlistUrl) {
+        var parsed = controller.parseXspf(xmlString, playlistUrl === undefined ? "" : playlistUrl.toString());
+        if (parsed.error !== "") {
+            showMessage("Error: " + parsed.error);
+            return;
         }
-
+        var tracks = parsed.tracks;
         if (tracks.length > 0) {
             playlist = tracks;
             currentTrackIndex = 0;
