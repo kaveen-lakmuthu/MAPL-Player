@@ -67,12 +67,16 @@ signals:
     void currentTrackTitleChanged();
     void backgroundColorChanged(const QString &hexColor);
     void thumbnailCaptured(const QString &trackUrl, const QString &base64Image);
+    void thumbnailSaveError(const QString &message);
     void timelinePreviewsReady(const QString &trackUrl, const QString &spriteSheetPath);
 
 private slots:
     void handleVideoFrame(const QVideoFrame &frame);
 
 private:
+    QString thumbnailPath(const QString &trackUrl) const;
+    bool writeThumbnail(const QString &trackUrl, const QByteArray &png) const;
+    void migrateThumbnails();
     QVideoSink* m_videoSink;
     QString m_currentTrackTitle;
     QImage m_lastImage;

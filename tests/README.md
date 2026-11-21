@@ -34,6 +34,7 @@ The executable is then `build/mapl-player`, ready for `./scripts/install.sh`. Th
 - Model checksum verification, atomic publication, synchronous `abort()` callbacks, HTTP/network failures, short writes, commit failures, existing-file preservation, cancellation and shutdown cleanup.
 - Model management controls, verification status, sizes and deletion guards for active models.
 - Supported media extensions and filenames requiring URL encoding.
+- Thumbnail migration into separate data files, preserved covers and preferences across reopening, compact preference writes, failed saves and migration retries without losing existing selections.
 - SRT/WebVTT text, timestamps, metadata blocks and export/import round trips.
 - Automatic subtitle filename matching across episode numbers, dotted titles, language/kind tags, case differences, literal wildcard characters and encoded Unicode names.
 - Atomic UTF-8 exports through paths and file URLs, successful overwrites, rejected and partial writes, preservation of existing files, and temporary-file cleanup. Write failures use file-size limits in a separate Unix process.
@@ -44,6 +45,7 @@ The executable is then `build/mapl-player`, ready for `./scripts/install.sh`. Th
 - Popup centering and bounds across window sizes, keyboard focus, modal shortcut isolation, fullscreen Escape handling and file chooser ownership.
 - Fullscreen restoration to windowed or maximized state through the toggle, Escape, F and double-click, including direct window-state changes, repeated cycles, normal-size preservation and saved layout restoration after reopening.
 - Fullscreen bottom-edge control reveal, short idle and pointer-leave timeouts, independent cursor hiding, hover/slider/popup protection, and stable video/caption geometry.
+- Separate timeline/transport hit areas and bottom padding in narrow, wide, Audio and fullscreen layouts, with independent speed-popup and fullscreen button activation.
 - Adjustable subtitle reading position, saved bottom gap, and space for tall captions in small windows.
 - Subtitle size changes through the settings slider, stable rendered font size across fullscreen transitions, and size/colour/background restoration after closing immediately after an adjustment.
 - Immediate paused-caption and transcript-highlight updates after timing shifts, subtitle replacement, file loading and clearing, in windowed and fullscreen views, without seeking or resuming; overlapping cues keep their display order and duplicate suppression.

@@ -20,6 +20,9 @@ PlayerController::PlayerController(QObject *parent)
     , m_lastFrameTime(0)
     , m_previewProcess(nullptr)
 {
+    // Retire large, embedded images before playback starts. Otherwise even a
+    // volume preference rewrites every thumbnail on the UI thread.
+    migrateThumbnails();
 }
 
 PlayerController::~PlayerController()
@@ -133,18 +136,61 @@ void PlayerController::captureThumbnail(const QString &trackUrl)
     QByteArray ba;
     QBuffer buffer(&ba);
     buffer.open(QIODevice::WriteOnly);
-    m_lastImage.save(&buffer, "PNG");
-    QString base64 = QString::fromLatin1(ba.toBase64().constData());
+    if (!m_lastImage.save(&buffer, "PNG") || !writeThumbnail(trackUrl, ba)) {
+        emit thumbnailSaveError(tr("Could not save the thumbnail."));
+        return;
+    }
+    const QString base64 = QString::fromLatin1(ba.toBase64());
 
+    // A previous migration may have failed (for example, a full disk). Remove
+    // that legacy value only after its replacement has been saved atomically.
     QSettings settings("MAPL", "MAPLPlayerNative");
-    settings.setValue("thumbnail/" + trackUrl, base64);
+    settings.remove("thumbnail/" + trackUrl);
     emit thumbnailCaptured(trackUrl, base64);
 }
 
 QString PlayerController::getThumbnail(const QString &trackUrl) const
 {
+    QFile image(thumbnailPath(trackUrl));
+    if (image.open(QIODevice::ReadOnly))
+        return QString::fromLatin1(image.readAll().toBase64());
+
+    // Keep existing covers available if migration could not write their files.
     QSettings settings("MAPL", "MAPLPlayerNative");
     return settings.value("thumbnail/" + trackUrl, "").toString();
+}
+
+QString PlayerController::thumbnailPath(const QString &trackUrl) const
+{
+    // QSettings collapsed repeated '/' in legacy keys, including file:///.
+    // Use the same spelling for both migrated keys and incoming media URLs.
+    const auto key = trackUrl.split('/', Qt::SkipEmptyParts).join('/');
+    const auto name = QCryptographicHash::hash(key.toUtf8(), QCryptographicHash::Sha256).toHex();
+    return QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+        + "/mapl-player/thumbnails/" + QString::fromLatin1(name) + ".png";
+}
+
+bool PlayerController::writeThumbnail(const QString &trackUrl, const QByteArray &png) const
+{
+    const auto path = thumbnailPath(trackUrl);
+    if (!QDir().mkpath(QFileInfo(path).absolutePath()))
+        return false;
+    QSaveFile file(path);
+    file.setDirectWriteFallback(false);
+    return file.open(QIODevice::WriteOnly) && file.write(png) == png.size() && file.commit();
+}
+
+void PlayerController::migrateThumbnails()
+{
+    QSettings settings("MAPL", "MAPLPlayerNative");
+    settings.beginGroup("thumbnail");
+    for (const auto &key : settings.allKeys()) {
+        const auto encoded = settings.value(key).toByteArray();
+        const auto png = QByteArray::fromBase64(encoded, QByteArray::AbortOnBase64DecodingErrors);
+        if (!png.isEmpty() && writeThumbnail(key, png))
+            settings.remove(key);
+        // Failed writes retain the original data and are retried next launch.
+    }
 }
 
 QString PlayerController::getCleanFileName(const QString &filePath) const

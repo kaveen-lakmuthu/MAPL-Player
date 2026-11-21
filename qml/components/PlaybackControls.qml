@@ -22,7 +22,8 @@ Rectangle {
     anchors.bottom: parent.bottom
     anchors.bottomMargin: overlay ? 12 : 0
     width: overlay ? Math.min(1000, parent.width - 24) : parent.width
-    height: audioPresentation ? 116 : 72
+    implicitHeight: controlsColumn.implicitHeight + controlsColumn.anchors.topMargin + controlsColumn.anchors.bottomMargin
+    height: implicitHeight
     radius: overlay ? 6 : 0
     color: overlay ? Qt.rgba(app.chromeColor.r, app.chromeColor.g, app.chromeColor.b, 0.88) : app.chromeColor
     z: 100
@@ -31,12 +32,13 @@ Rectangle {
     Behavior on opacity { NumberAnimation { duration: app.reduceMotion ? 0 : 100 } }
     HoverHandler { id: hover }
     ColumnLayout {
+        id: controlsColumn
         anchors.fill: parent
         anchors.leftMargin: root.audioPresentation ? Math.max(20, (root.width - 1000) / 2) : 16
         anchors.rightMargin: anchors.leftMargin
         anchors.topMargin: root.audioPresentation ? 8 : 6
         anchors.bottomMargin: root.audioPresentation ? 10 : 6
-        spacing: root.audioPresentation ? 8 : 0
+        spacing: 8
         Timeline { id: timeline; app: root.app; Layout.fillWidth: true }
         TransportControls { id: transport; app: root.app; spacious: root.audioPresentation; Layout.fillWidth: true }
     }

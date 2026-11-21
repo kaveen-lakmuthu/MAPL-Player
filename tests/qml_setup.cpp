@@ -70,6 +70,7 @@ public slots:
         QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, settings.path());
         QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settings.path());
         qputenv("XDG_CACHE_HOME", settings.path().toUtf8());
+        qputenv("XDG_DATA_HOME", settings.filePath("data").toUtf8());
         // A minute of silent PCM exercises the real Qt Multimedia seek/load path.
         QFile audio(settings.filePath("Resume #1.wav"));
         if (audio.open(QIODevice::WriteOnly)) {

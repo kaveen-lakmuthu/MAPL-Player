@@ -5,10 +5,11 @@ import QtQuick.Controls
 
 Item {
     id: root
+    objectName: "transportControls"
     required property var app
     property bool spacious: false
     property alias volumeSlider: volume.slider
-    implicitHeight: spacious ? 60 : 30
+    implicitHeight: Math.max(playback.implicitHeight, loop.implicitHeight, extras.implicitHeight)
 
     TransportButtons {
         id: playback
@@ -52,6 +53,7 @@ Item {
         DesktopButton { glyph: "chapters"; hint: "Chapters"; visible: app.mediaChapters.length > 0; onClicked: app.chaptersPopupVisible = !app.chaptersPopupVisible }
         VolumeControl { id: volume; app: root.app; isNarrow: root.width < 700 }
         DesktopButton {
+            objectName: "fullscreenButton"
             glyph: app.visibility === Window.FullScreen ? "restore" : "fullscreen"
             hint: app.visibility === Window.FullScreen ? "Leave fullscreen (F / Esc)" : "Fullscreen (F)"
             onClicked: app.toggleFullscreen()

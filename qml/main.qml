@@ -589,6 +589,7 @@ ApplicationWindow {
         onThumbnailCaptured: (trackUrl, base64) => {
             currentThumbnailDataUrl = "data:image/png;base64," + base64;
         }
+        onThumbnailSaveError: message => window.showMessage(message)
 
         onTimelinePreviewsReady: (trackUrl, spriteSheetPath) => {
             console.log("[DEBUG] timelinePreviewsReady signal received. trackUrl:", trackUrl, "spriteSheetPath:", spriteSheetPath);

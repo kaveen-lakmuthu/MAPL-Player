@@ -889,6 +889,39 @@ TestCase {
         compare(appWindow.mediaPlayer.playbackState, MediaPlayer.PlayingState);
         compare(appWindow.mediaPlayer.source.toString(), TestPaths.folderMediaUrl);
     }
+    function test_playbackRowsHaveSeparateHitAreas_data() {
+        return [
+            {tag: "small-video", view: "video", width: 640, fullscreen: false},
+            {tag: "wide-video", view: "video", width: 1120, fullscreen: false},
+            {tag: "audio", view: "audio", width: 1120, fullscreen: false},
+            {tag: "fullscreen", view: "video", width: 1120, fullscreen: true}
+        ];
+    }
+    function test_playbackRowsHaveSeparateHitAreas(data) {
+        appWindow.reduceMotion = true;
+        appWindow.width = data.width;
+        appWindow.showMediaView(data.view);
+        if (data.fullscreen) appWindow.showFullScreen();
+        appWindow.controlsVisible = true;
+        var controls = findChild(appWindow, "playbackControls");
+        var speed = findChild(appWindow, "playbackOptionsButton");
+        var fullscreen = findChild(appWindow, "fullscreenButton");
+        var play = findChild(appWindow, "playPauseButton");
+        var volume = findChild(appWindow, "volumeControl");
+        waitForRendering(controls);
+        var speedBottom = speed.mapToItem(controls, 0, speed.height).y;
+        for (var control of [fullscreen, play, volume]) {
+            var point = control.mapToItem(controls, 0, 0);
+            verify(point.y - speedBottom >= 7.5, "Playback rows need a visible gap between their hit areas");
+            verify(point.y + control.height <= controls.height - 5.5, "Controls must fit inside the bar's bottom padding");
+        }
+        mouseClick(speed);
+        tryVerify(function () { return findChild(appWindow, "playbackOptionsPopup").opened; });
+        findChild(appWindow, "playbackOptionsPopup").close();
+        tryVerify(function () { return !findChild(appWindow, "playbackOptionsPopup").visible; });
+        mouseClick(fullscreen);
+        tryCompare(appWindow, "visibility", data.fullscreen ? Window.Windowed : Window.FullScreen);
+    }
     function test_fullscreenControlsRevealFromBottomAndDismissOverPicture() {
         appWindow.reduceMotion = false;
         appWindow.showMediaView("video");
@@ -1131,7 +1164,7 @@ TestCase {
         waitForRendering(surface);
         compare(surface.width, appWindow.width);
         compare(surface.height, appWindow.height);
-        compare(controls.height, 72);
+        verify(controls.height <= 80, "Video controls must stay compact while leaving space between rows");
         verify(controls.width <= 1000 && controls.width <= appWindow.width - 24);
         compare(controls.x, (appWindow.width - controls.width) / 2);
         compare(controls.y + controls.height, surface.height - 12);
@@ -1226,7 +1259,7 @@ TestCase {
             compare(origin.x, 0);
             compare(origin.y, 40);
             compare(surface.width, appWindow.width);
-            compare(surface.height, appWindow.height - 112);
+            compare(surface.height, appWindow.height - 40 - findChild(appWindow, "playbackControls").height);
             compare(surface.color, Qt.color("#000000"));
             var caption = findChild(appWindow, "videoSubtitleOverlay");
             verify(surface.height - caption.y - caption.height >= surface.height * 0.1,
@@ -1362,7 +1395,8 @@ TestCase {
         appWindow.showMediaView("video");
         wait(30);
         compare(play.height, videoButtonHeight);
-        compare(findChild(appWindow, "playerSurface").height, appWindow.height - 112);
+        compare(findChild(appWindow, "playerSurface").height,
+                appWindow.height - 40 - findChild(appWindow, "playbackControls").height);
     }
     function test_audioLayoutFitsSmallWindowsAndSidePanels_data() {
         return [{tag: "empty", loaded: false}, {tag: "single-track", loaded: true}, {tag: "multiple-tracks", loaded: true, multipleTracks: true}];

@@ -19,6 +19,7 @@ private slots:
         environment.insert("QT_QPA_PLATFORM", "offscreen");
         environment.insert("XDG_CONFIG_HOME", directory.filePath("config"));
         environment.insert("XDG_CACHE_HOME", directory.filePath("cache"));
+        environment.insert("XDG_DATA_HOME", directory.filePath("data"));
         QProcess process;
         process.setProcessEnvironment(environment);
         process.start(QString::fromUtf8(MAPL_APP_BINARY), {QStringLiteral("--version")});
@@ -60,6 +61,7 @@ private slots:
         environment.insert("QT_FORCE_STDERR_LOGGING", "1");
         environment.insert("XDG_CONFIG_HOME", installation.filePath("config"));
         environment.insert("XDG_CACHE_HOME", installation.filePath("cache"));
+        environment.insert("XDG_DATA_HOME", installation.filePath("data"));
         environment.remove("QML_IMPORT_PATH");
         environment.remove("QML2_IMPORT_PATH");
         environment.remove("LD_LIBRARY_PATH");

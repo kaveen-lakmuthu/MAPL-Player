@@ -22,6 +22,7 @@ private slots:
     {
         QVERIFY(settingsDirectory.isValid());
         QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, settingsDirectory.path());
+        qputenv("XDG_DATA_HOME", settingsDirectory.filePath("data").toUtf8());
     }
     void textExport_data()
     {
@@ -310,6 +311,9 @@ private slots:
         QCOMPARE(captured.count(), 1);
         const QString firstCover = controller.getThumbnail("file:///first.mp4");
         QCOMPARE(QImage::fromData(QByteArray::fromBase64(firstCover.toLatin1())).pixelColor(0, 0), QColor("#d04030"));
+        QSettings settings("MAPL", "MAPLPlayerNative");
+        QVERIFY(!settings.contains("thumbnail/file:///first.mp4"));
+        QVERIFY(QFile::exists(controller.thumbnailPath("file:///first.mp4")));
 
         controller.resetVideoFrame();
         QVERIFY(!controller.hasVideoFrame());
@@ -322,6 +326,76 @@ private slots:
         controller.handleVideoFrame(frame);
         QVERIFY(controller.hasVideoFrame());
         QCOMPARE(available.count(), 3);
+    }
+    void thumbnailsMigrateWithoutInflatingPreferences()
+    {
+        const QString url = QStringLiteral("file:///shows/සිංහල & episode #100%.mp4");
+        const QString otherUrl = QStringLiteral("file:///other/episode.mp4");
+        const QString cover = QString::fromLatin1(QByteArray("Existing cover bytes").toBase64());
+        QSettings settings("MAPL", "MAPLPlayerNative");
+        settings.setValue("thumbnail/" + url, cover);
+        settings.setValue("thumbnail/" + otherUrl, cover);
+        settings.setValue("volume", 75);
+        settings.setValue("playback/positions/example", 12000);
+        settings.sync();
+
+        PlayerController controller;
+        QCOMPARE(controller.getThumbnail(url), cover);
+        QCOMPARE(controller.getThumbnail(otherUrl), cover);
+        QVERIFY(controller.thumbnailPath(url) != controller.thumbnailPath(otherUrl));
+        QVERIFY(!settings.contains("thumbnail/" + url));
+        QVERIFY(!settings.contains("thumbnail/" + otherUrl));
+        QCOMPARE(controller.loadVolume(), 75);
+        QCOMPARE(settings.value("playback/positions/example").toInt(), 12000);
+
+        controller.m_lastImage = QImage(32, 32, QImage::Format_RGB32);
+        controller.m_lastImage.fill(Qt::blue);
+        controller.captureThumbnail(url);
+        const auto replacement = controller.getThumbnail(url);
+        QVERIFY(replacement != cover);
+        controller.saveVolume(35);
+        controller.saveLoop(true);
+        settings.sync();
+        QVERIFY2(QFileInfo(settings.fileName()).size() < 4096, "Preference writes must exclude thumbnail data");
+        PlayerController reopened;
+        QCOMPARE(reopened.getThumbnail(url), replacement);
+        QCOMPARE(reopened.getThumbnail(otherUrl), cover);
+        QCOMPARE(reopened.loadVolume(), 35);
+        QVERIFY(reopened.loadLoop());
+    }
+    void thumbnailStorageFailurePreservesLegacyCover()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto previousDataHome = qgetenv("XDG_DATA_HOME");
+        const auto restoreDataHome = qScopeGuard([&] { qputenv("XDG_DATA_HOME", previousDataHome); });
+        qputenv("XDG_DATA_HOME", directory.path().toUtf8());
+        // A file where the data directory should be makes writes fail even as root.
+        QFile blocker(directory.filePath("mapl-player"));
+        QVERIFY(blocker.open(QIODevice::WriteOnly));
+        blocker.close();
+        const QString url = "file:///legacy.mp4";
+        const QString cover = QString::fromLatin1(QByteArray("Original cover").toBase64());
+        QSettings settings("MAPL", "MAPLPlayerNative");
+        const auto cleanup = qScopeGuard([&] { settings.remove("thumbnail/" + url); });
+        settings.setValue("thumbnail/" + url, cover);
+        PlayerController controller;
+        QCOMPARE(controller.getThumbnail(url), cover);
+        QCOMPARE(settings.value("thumbnail/" + url).toString(), cover);
+        controller.m_lastImage = QImage(16, 16, QImage::Format_RGB32);
+        controller.m_lastImage.fill(Qt::red);
+        QSignalSpy captured(&controller, &PlayerController::thumbnailCaptured);
+        QSignalSpy error(&controller, &PlayerController::thumbnailSaveError);
+        controller.captureThumbnail(url);
+        QCOMPARE(captured.count(), 0);
+        QCOMPARE(error.count(), 1);
+        QCOMPARE(controller.getThumbnail(url), cover);
+        QCOMPARE(settings.value("thumbnail/" + url).toString(), cover);
+
+        QVERIFY(blocker.remove());
+        PlayerController retried;
+        QCOMPARE(retried.getThumbnail(url), cover);
+        QVERIFY(!settings.contains("thumbnail/" + url));
     }
     void asyncChapters()
     {
