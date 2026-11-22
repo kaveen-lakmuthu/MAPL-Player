@@ -31,11 +31,13 @@ The executable is then `build/mapl-player`, ready for `./scripts/install.sh`. Th
 - MPRIS registration, typed metadata, remote controls, microsecond seeks, stale track IDs, property notifications and isolated multi-instance D-Bus behavior.
 - Previous/Next, explicit Stop, end-of-media advancement, playlist looping and folder selection.
 - XSPF XML entity decoding, URI encoding, CDATA, namespaces, relative locations and `xml:base`, queue order and duplicate entries, malformed-file rejection, and real playback of escaped filenames through the File menu handler and drag-and-drop.
+- Pending playlist reads cancelled by newer media, track or playlist selections and window closing, without stale queue changes or notifications.
 - Model checksum verification, atomic publication, synchronous `abort()` callbacks, HTTP/network failures, short writes, commit failures, existing-file preservation, cancellation and shutdown cleanup.
 - Model management controls, verification status, sizes and deletion guards for active models.
 - Supported media extensions and filenames requiring URL encoding.
 - Thumbnail migration into separate data files, preserved covers and preferences across reopening, compact preference writes, failed saves and migration retries without losing existing selections.
 - SRT/WebVTT text, timestamps, metadata blocks and export/import round trips.
+- Whitespace-only SRT separators across LF, CRLF and CR line endings, preserving cue timing and multiline text.
 - Automatic subtitle filename matching across episode numbers, dotted titles, language/kind tags, case differences, literal wildcard characters and encoded Unicode names.
 - Atomic UTF-8 exports through paths and file URLs, successful overwrites, rejected and partial writes, preservation of existing files, and temporary-file cleanup. Write failures use file-size limits in a separate Unix process.
 - Subtitle generation completing after a track switch, same-file reload or model download.
@@ -51,6 +53,7 @@ The executable is then `build/mapl-player`, ready for `./scripts/install.sh`. Th
 - Immediate paused-caption and transcript-highlight updates after timing shifts, subtitle replacement, file loading and clearing, in windowed and fullscreen views, without seeking or resuming; overlapping cues keep their display order and duplicate suppression.
 - Video single-click pause/resume and complete double-click sequences entering/leaving fullscreen without even a temporary playback-state change.
 - Volume arrow keys immediately after startup and with timeline, volume or sidebar controls focused. The QML harness uses the same `QApplication` startup as the player, and dialog tests wait for closing animations before checking restored shortcuts.
+- Final volume persistence after immediate exit in Video, Audio and fullscreen, including zero, maximum and fractional wheel values, while playback saves stay debounced.
 - Wheel volume control on audio/video and volume controls, high-resolution deltas, bounds and unmuting, while transcripts, playlists and modal panels retain normal scrolling.
 - Full application builds also copy the executable to an otherwise empty temporary directory and test application-menu startup and Open With (paths and file URLs), with isolated settings and a private D-Bus session.
 

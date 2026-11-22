@@ -185,6 +185,7 @@ ApplicationWindow {
     }
 
     onClosing: {
+        cancelPlaylistLoad();
         // Alias changes are written on a delay. Save the final subtitle
         // appearance explicitly before syncing, even after a quick adjustment.
         desktopUiSettings.setValue("subtitleFontSize", subtitleFontSize);
@@ -672,23 +673,42 @@ ApplicationWindow {
     property string pendingExportFormat: "srt"
 
     // --- Drag and Drop File Support Helper ---
+    property var playlistRequest: null
+    onMediaRevisionChanged: cancelPlaylistLoad()
+
+    function cancelPlaylistLoad() {
+        var previous = playlistRequest;
+        playlistRequest = null;
+        if (previous !== null)
+            previous.abort();
+    }
+
+    function loadPlaylistFile(fileUrl) {
+        cancelPlaylistLoad();
+        var url = fileUrl.toString();
+        var request = new XMLHttpRequest();
+        playlistRequest = request;
+        request.open("GET", url, true);
+        request.onreadystatechange = function () {
+            // abort() can call back synchronously; retire the request first.
+            if (playlistRequest !== request || request.readyState !== XMLHttpRequest.DONE)
+                return;
+            playlistRequest = null;
+            if (request.status === 200 || (request.status === 0 && request.responseText !== ""))
+                parseXspf(request.responseText, url);
+            else
+                showMessage("Error: Could not read XSPF playlist.");
+        };
+        request.send();
+        sidebarOpen = false;
+    }
+
     function handleDroppedFile(fileUrl) {
         var urlStr = fileUrl.toString();
         var lower = urlStr.toLowerCase();
 
         if (lower.endsWith(".xspf")) {
-            var request = new XMLHttpRequest();
-            request.open("GET", urlStr, true);
-            request.onreadystatechange = function () {
-                if (request.readyState === XMLHttpRequest.DONE) {
-                    if (request.status === 200 || (request.status === 0 && request.responseText !== ""))
-                        parseXspf(request.responseText, urlStr);
-                    else
-                        showMessage("Error: Could not read XSPF playlist.");
-                }
-            };
-            request.send();
-            sidebarOpen = false;
+            loadPlaylistFile(urlStr);
         } else if (lower.endsWith(".txt") || lower.endsWith(".srt") || lower.endsWith(".vtt")) {
             loadSubtitleFile(urlStr, true);
             sidebarOpen = false;
@@ -938,6 +958,7 @@ ApplicationWindow {
     }
 
     function parseXspf(xmlString, playlistUrl) {
+        cancelPlaylistLoad();
         var parsed = controller.parseXspf(xmlString, playlistUrl === undefined ? "" : playlistUrl.toString());
         if (parsed.error !== "") {
             showMessage("Error: " + parsed.error);

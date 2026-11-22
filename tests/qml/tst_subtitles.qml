@@ -20,6 +20,29 @@ TestCase {
         verify(chunks[0].isMetadata);
         verify(!chunks[1].isMetadata);
     }
+    function test_srtWhitespaceSeparators_data() {
+        var rows = [];
+        for (var newline of ["\n", "\r\n", "\r"]) {
+            for (var whitespace of ["", " ", "\t", " \t  ", "\n \t\n"]) {
+                rows.push({tag: JSON.stringify([newline, whitespace]), newline: newline, whitespace: whitespace});
+            }
+        }
+        return rows;
+    }
+    function test_srtWhitespaceSeparators(data) {
+        var input = '1\n00:00:01,250 --> 00:00:02,500\nFirst caption\nWrapped line\n'
+            + data.whitespace + '\n2\n00:00:03,000 --> 00:00:04,000\nSecond caption';
+        var cues = Subtitles.parseSRT(input.replace(/\n/g, data.newline));
+        compare(cues.length, 2);
+        compare(cues[0].start, 1.25);
+        compare(cues[0].end, 2.5);
+        compare(cues[0].text, 'First caption\nWrapped line');
+        compare(cues[1].start, 3);
+        compare(cues[1].end, 4);
+        compare(cues[1].text, 'Second caption');
+        var roundTrip = Subtitles.parseSRT(Subtitles.formatSRT(cues));
+        compare(roundTrip, cues);
+    }
     function test_roundTrip_data() {
         return [
             {

@@ -40,19 +40,7 @@ Item {
         title: "Select XSPF Playlist"
         nameFilters: ["XSPF Playlists (*.xspf)"]
         onAccepted: {
-            var fileUrl = selectedFile.toString();
-            var request = new XMLHttpRequest();
-            request.open("GET", fileUrl, true);
-            request.onreadystatechange = function () {
-                if (request.readyState === XMLHttpRequest.DONE) {
-                    if (request.status === 200 || (request.status === 0 && request.responseText !== ""))
-                        app.parseXspf(request.responseText, fileUrl);
-                    else
-                        app.showMessage("Error: Could not read XSPF playlist.");
-                }
-            };
-            request.send();
-            app.sidebarOpen = false;
+            app.loadPlaylistFile(selectedFile);
         }
     }
 

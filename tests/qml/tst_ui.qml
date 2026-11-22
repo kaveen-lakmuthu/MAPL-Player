@@ -71,6 +71,55 @@ TestCase {
         compare(appWindow.playlist.length, 3, "Selecting a row must keep the folder queue");
         compare(appWindow.panelView, "playlist");
     }
+    function test_pendingPlaylistCannotReplaceNewSelection_data() {
+        return [
+            {tag: "drop-then-media", dialog: false, replacement: "media"},
+            {tag: "menu-then-media", dialog: true, replacement: "media"},
+            {tag: "drop-then-track", dialog: false, replacement: "track"},
+            {tag: "menu-then-playlist", dialog: true, replacement: "playlist"},
+            {tag: "drop-then-close", dialog: false, replacement: "close"}
+        ];
+    }
+    function test_pendingPlaylistCannotReplaceNewSelection(data) {
+        appWindow.playFolderToggle = false;
+        appWindow.loadMediaFile(TestPaths.audioUrl);
+        tryCompare(appWindow.mediaPlayer, "playbackState", MediaPlayer.PlayingState);
+        appWindow.mediaPlayer.pause();
+        var base = TestPaths.audioUrl.substring(0, TestPaths.audioUrl.lastIndexOf("/") + 1);
+        var oldUrl = base + "Earlier.xspf";
+        var xml = '<playlist><trackList><track><location>'
+            + TestPaths.escapedMediaUrl.replace(/&/g, "&amp;")
+            + '</location><title>Earlier playlist</title></track></trackList></playlist>';
+        verify(appWindow.playerController.writeTextToFile(oldUrl, xml));
+        if (data.dialog) {
+            var dialog = findChild(appWindow, "playlistFileDialog");
+            dialog.selectedFile = oldUrl;
+            dialog.accepted();
+        } else appWindow.handleDroppedFile(oldUrl);
+        verify(appWindow.playlistRequest !== null);
+        if (data.replacement === "playlist") {
+            var newUrl = base + "Latest.xspf";
+            verify(appWindow.playerController.writeTextToFile(newUrl, xml.replace("Earlier playlist", "Latest playlist")));
+            appWindow.handleDroppedFile(newUrl);
+            tryCompare(appWindow, "playlistRequest", null);
+            compare(appWindow.playlist[0].title, "Latest playlist");
+        } else {
+            if (data.replacement === "media") appWindow.loadMediaFile(TestPaths.audioUrl);
+            else if (data.replacement === "track") appWindow.loadTrack(0);
+            else appWindow.close();
+            compare(appWindow.playlistRequest, null);
+        }
+        var revision = appWindow.mediaRevision;
+        var source = appWindow.mediaPlayer.source.toString();
+        var title = appWindow.playlist[0].title;
+        var message = appWindow.messageText;
+        wait(100);
+        compare(appWindow.mediaRevision, revision);
+        compare(appWindow.mediaPlayer.source.toString(), source);
+        compare(appWindow.playlist[0].title, title);
+        compare(appWindow.messageText, message, "Cancelled reads must not show stale success or error messages");
+        verify(title !== "Earlier playlist");
+    }
     function test_xspfEscapedPathAndTitlePlay() {
         appWindow.playbackHistory.clearPosition(TestPaths.escapedMediaUrl);
         var location = TestPaths.escapedMediaUrl.replace(/&/g, "&amp;");
@@ -722,6 +771,39 @@ TestCase {
         keyClick(Qt.Key_Space);
         tryCompare(appWindow.mediaPlayer, "playbackState", data.paused ? MediaPlayer.PausedState : MediaPlayer.PlayingState);
         compare(spy.count, 2, "A new press after release must toggle again");
+    }
+    function test_finalVolumeSavedOnImmediateClose_data() {
+        return [
+            {tag: "video", view: "video", fullscreen: false, volume: 23},
+            {tag: "audio", view: "audio", fullscreen: false, volume: 43},
+            {tag: "fullscreen", view: "video", fullscreen: true, volume: 84},
+            {tag: "zero", view: "video", fullscreen: false, volume: 0},
+            {tag: "maximum", view: "audio", fullscreen: false, volume: 100},
+            {tag: "fractional-wheel", view: "video", fullscreen: false, volume: 50.625}
+        ];
+    }
+    function test_finalVolumeSavedOnImmediateClose(data) {
+        appWindow.playerController.saveVolume(61);
+        appWindow.volumeSlider.value = 61;
+        appWindow.showMediaView(data.view);
+        if (data.fullscreen) appWindow.showFullScreen();
+        // Several changes should coalesce, but closing must save the last one
+        // even before the 500 ms timer gets an event-loop turn.
+        appWindow.volumeSlider.value = 15;
+        appWindow.volumeSlider.value = data.volume;
+        compare(appWindow.playerController.loadVolume(), 61, "Playback saves should remain debounced");
+        appWindow.close();
+        compare(appWindow.playerController.loadVolume(), Math.round(data.volume));
+        appWindow.destroy();
+        appWindow = null;
+        wait(0);
+        var component = Qt.createComponent(TestPaths.mainQml);
+        appWindow = createTemporaryObject(component, testCase, {
+            layoutPersistenceEnabled: false,
+            desktopControlsEnabled: false
+        });
+        verify(appWindow !== null);
+        compare(appWindow.volumeSlider.value, Math.round(data.volume));
     }
     function test_volumeArrowsAfterFocusingControls_data() {
         return [

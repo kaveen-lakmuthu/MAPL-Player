@@ -4,7 +4,7 @@
 function parseSRT(srtText) {
     var chunks = [];
     var text = srtText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    var blocks = text.split("\n\n");
+    var blocks = text.split(/\n[ \t]*\n/);
 
     for (var i = 0; i < blocks.length; i++) {
         var block = blocks[i].trim();

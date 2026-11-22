@@ -9,6 +9,14 @@ RowLayout {
     property bool isNarrow: false
     property alias slider: volumeSlider
     spacing: 8
+    function saveVolume() {
+        saveTimer.stop();
+        app.playerController.saveVolume(Math.round(volumeSlider.value));
+    }
+    Connections {
+        target: root.app
+        function onClosing() { root.saveVolume(); }
+    }
     VolumeWheelHandler { app: root.app }
     DesktopButton {
         glyph: app.isMuted || volumeSlider.value === 0 ? "muted" : "volume"
@@ -29,7 +37,7 @@ RowLayout {
             saveTimer.restart();
             if (value > 0) app.isMuted = false;
         }
-        Timer { id: saveTimer; interval: 500; onTriggered: app.playerController.saveVolume(Math.round(volumeSlider.value)) }
+        Timer { id: saveTimer; interval: 500; onTriggered: root.saveVolume() }
         background: Rectangle {
             x: volumeSlider.leftPadding
             y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2

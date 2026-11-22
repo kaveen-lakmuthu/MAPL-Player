@@ -2,7 +2,7 @@
 
 **MAPL Player** is a native desktop media player for Linux, built with **C++ and Qt6/QML**. It plays audio and video, generates subtitles offline using a local AI model, and provides compact video controls, a dedicated ambient Audio view, expandable lyrics and playlist panels, and timeline previews. Format support depends on the installed Qt Multimedia backend and codecs.
 
-> **Version 2.3.15-alpha. Alpha testing is underway.** Use `scripts/install.sh` to install for your user on Linux.
+> **Version 2.3.16-alpha. Alpha testing is underway.** Use `scripts/install.sh` to install for your user on Linux.
 
 The desktop UI redesign starts the **2.x** release series. Fixes use patch releases such as `2.0.1-alpha`; feature updates use minor releases such as `2.1.0-alpha`. Releases retain the `-alpha` suffix while alpha testing continues. The build derives the application version from `CMakeLists.txt` and exposes it in About and through `mapl-player --version`.
 
@@ -20,6 +20,8 @@ Brief notifications such as seeking, volume and track changes appear in the top-
 
 Selected thumbnails are stored as separate PNG files under `$XDG_DATA_HOME/mapl-player/thumbnails` (normally `~/.local/share/mapl-player/thumbnails`). Existing embedded thumbnails migrate at startup; originals stay in settings if saving fails. Volume and other preference changes no longer rewrite thumbnail image data during playback.
 
+Volume saves are debounced during playback, and closing MAPL immediately saves the final level, including adjustments made just before exit.
+
 Subtitles sit higher by default, with a bottom gap of 12% of the playback area's height that scales with window/fullscreen size. Adjust **Bottom gap** (5–25%) under **Options → Subtitles → Appearance, timing and export…**; higher values raise the text, and MAPL remembers your choice. Captions stay above the fullscreen strip without moving when it hides, and long captions leave room at the top when possible.
 
 Subtitle font size, text colour and background opacity are remembered too. Entering or leaving fullscreen keeps the chosen font size, and reopening MAPL restores the same appearance settings.
@@ -28,11 +30,15 @@ Changing subtitle timing or loading, replacing or clearing subtitles refreshes c
 
 Subtitle exports use UTF-8 and replace the destination only after the complete file is saved successfully. Failed writes report an export error and preserve any existing destination file.
 
+SRT imports accept separator lines containing spaces or tabs, including LF, CRLF and CR line endings, without combining captions or displaying their timestamps as text.
+
 Automatic subtitle detection requires the same base filename, optionally followed by dot-separated tags: `Episode1.srt`, `Episode1.en.vtt` and `Episode1.en.forced.srt` match `Episode1.mp4`; `Episode10.srt` does not. Matching ignores case and treats brackets and other filename characters literally.
 
 Click any Playlist row to select and play that item, including in folder-loaded queues and filtered results. Filtering preserves queue positions, and selecting an item keeps the queue for automatic advancement. Entries remain individually selectable when the same file appears more than once. Files with a saved position can still offer Resume or Start over.
 
 XSPF imports decode XML escapes in paths and titles, including filenames containing `&`, and support CDATA and namespace-prefixed elements. Relative media locations resolve against the playlist file, including `xml:base` overrides. Malformed playlists report an error and keep the current queue.
+
+File-menu and drag-and-drop playlist loads share cancellation handling. Selecting another media file, track or playlist, or closing MAPL, retires the earlier read so it cannot overwrite a newer selection or show a stale notification.
 
 During model downloads, verification, or transcription, a compact task button beside the timeline opens progress and individual cancellation controls. It is available in every view, including the fullscreen playback strip. Dismissing the task panel leaves jobs running; detailed model management remains in Options → Subtitles → Whisper models.
 
